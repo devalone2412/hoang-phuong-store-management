@@ -61,3 +61,10 @@ export const productBarcodes = sqliteTable(
 );
 
 export type NewBarcodeRow = typeof productBarcodes.$inferInsert;
+
+/** Tiny key/value table for single-admin settings, e.g. `admin_avatar` -> an image key in the IMAGES bucket. */
+export const appSettings = sqliteTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value"),
+  updatedAt: integer("updated_at").notNull(),
+});

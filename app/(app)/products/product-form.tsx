@@ -10,31 +10,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BarcodeScanButton } from "@/components/barcode-scanner";
+import { MoneyInput } from "@/components/money-input";
 import { ProductThumb } from "@/components/product-bits";
 import { MAX_BARCODES, MAX_COMBOS, comboWarnings, priceWarnings, productInputSchema, type Product } from "@/features/products/schema";
 import { ApiError, api } from "@/lib/api";
 import { formatDateTime, formatVndNumber, parseVnd } from "@/lib/money";
-
-async function encodeWebp(bitmap: ImageBitmap, maxSide: number, quality: number): Promise<Blob> {
-  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/webp", quality));
-  if (!blob) throw new Error("encode failed");
-  return blob;
-}
-
-/** Shrink phone photos before upload: a 1024px WebP plus a 256px thumbnail for the lists. */
-async function prepareImage(file: File): Promise<{ main: Blob; thumb: Blob }> {
-  const bitmap = await createImageBitmap(file);
-  try {
-    return { main: await encodeWebp(bitmap, 1024, 0.85), thumb: await encodeWebp(bitmap, 256, 0.8) };
-  } finally {
-    bitmap.close();
-  }
-}
+import { uploadImage } from "@/lib/upload-image";
 
 type ComboRow = { quantity: string; price: string };
 
@@ -78,13 +59,7 @@ function FormBody({ onOpenChange, product, units, categories }: Props) {
     if (!file) return;
     setUploading(true);
     try {
-      const { main, thumb } = await prepareImage(file).catch(() => {
-        throw new Error("Không đọc được ảnh này");
-      });
-      const body = new FormData();
-      body.append("file", main, "image.webp");
-      body.append("thumb", thumb, "thumb.webp");
-      const { key } = await api<{ key: string }>("/api/images", { method: "POST", body });
+      const key = await uploadImage(file);
       setImageKey(key);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Tải ảnh thất bại");
@@ -159,16 +134,10 @@ function FormBody({ onOpenChange, product, units, categories }: Props) {
   }
 
   const err = (k: string) => (errors[k] ? <p className="text-sm text-destructive">{errors[k]}</p> : null);
-  const priceInput = (k: keyof typeof prices, label: string) => (
-    <div className="grid gap-1.5">
+  const priceInput = (k: keyof typeof prices, label: string, className?: string) => (
+    <div className={`grid gap-1.5 ${className ?? ""}`}>
       <Label htmlFor={k}>{label}</Label>
-      <Input
-        id={k}
-        inputMode="decimal"
-        placeholder="15.000"
-        value={prices[k]}
-        onChange={(e) => setPrices((p) => ({ ...p, [k]: e.target.value }))}
-      />
+      <MoneyInput id={k} placeholder="15.000" value={prices[k]} onChange={(v) => setPrices((p) => ({ ...p, [k]: v }))} />
       {err(k)}
     </div>
   );
@@ -240,12 +209,12 @@ function FormBody({ onOpenChange, product, units, categories }: Props) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1 sm:grid-cols-3">
         {priceInput("retailPrice", "Giá lẻ *")}
         {priceInput("wholesalePrice", "Giá sỉ")}
-        {priceInput("costPrice", "Giá vốn")}
+        {priceInput("costPrice", "Giá vốn", "col-span-2 sm:col-span-1")}
       </div>
-      <p className="-mt-2 text-xs text-muted-foreground">Nhập nhanh được: 15k = 15.000 · 1,2tr = 1.200.000</p>
+      <p className="-mt-2 text-xs text-muted-foreground">Nhập nhanh: gõ 15 rồi bấm k = 15.000 · gõ 1,2 rồi bấm tr = 1.200.000</p>
       <div className="grid gap-2">
         <div className="flex items-center justify-between">
           <Label>Giá combo</Label>
@@ -267,12 +236,12 @@ function FormBody({ onOpenChange, product, units, categories }: Props) {
               onChange={(e) => setCombos((list) => list.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)))}
             />
             <span className="text-sm text-muted-foreground">giá</span>
-            <Input
-              inputMode="decimal"
+            <MoneyInput
+              className="min-w-0 flex-1"
               placeholder="20.000"
               aria-label={`Giá combo ${i + 1}`}
               value={c.price}
-              onChange={(e) => setCombos((list) => list.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))}
+              onChange={(v) => setCombos((list) => list.map((x, j) => (j === i ? { ...x, price: v } : x)))}
             />
             <Button type="button" variant="ghost" size="icon" aria-label="Xóa combo" onClick={() => setCombos((list) => list.filter((_, j) => j !== i))}>
               <Trash2 />

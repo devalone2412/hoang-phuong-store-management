@@ -26,6 +26,7 @@
   --ring: #0e6b55;
   --price-tag: #f4b400;
   --price-tag-foreground: #17201d;
+  --brand-deep: #0a4d3d;
   --success: #15803d;
   --warning: #b45309;
   --sidebar: #ffffff;
@@ -59,6 +60,7 @@
   --ring: #3fbf9a;
   --price-tag: #f4b400;
   --price-tag-foreground: #17201d;
+  --brand-deep: #0c2a23;
   --success: #4ade80;
   --warning: #fbbf24;
   --sidebar: #161e1b;
@@ -97,6 +99,7 @@
   --color-ring: var(--ring);
   --color-price-tag: var(--price-tag);
   --color-price-tag-foreground: var(--price-tag-foreground);
+  --color-brand-deep: var(--brand-deep);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-sidebar: var(--sidebar);
@@ -121,6 +124,18 @@
   [role="button"]:not([aria-disabled="true"]) {
     cursor: pointer;
   }
+}
+
+/* The one orchestrated moment: the price tag on the login storefront swings once, then rests. */
+@keyframes tag-swing {
+  0% { transform: rotate(-16deg); }
+  30% { transform: rotate(10deg); }
+  55% { transform: rotate(-6deg); }
+  78% { transform: rotate(2.5deg); }
+  100% { transform: rotate(0); }
+}
+.tag-swing {
+  animation: tag-swing 1.5s ease-out 0.4s both;
 }
 
 @media (prefers-reduced-motion: reduce) {

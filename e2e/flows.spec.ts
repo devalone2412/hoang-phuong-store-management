@@ -81,3 +81,64 @@ test("creates a product with a photo and combos; both pages show the image and e
   await expect(card).not.toContainText("3.000 ₫");
   await expect.poll(() => card.getByRole("img", { name }).evaluate((i: HTMLImageElement) => i.naturalWidth)).toBeGreaterThan(0);
 });
+
+test("price boxes: k / tr buttons build shorthand and show what it means", async ({ page }) => {
+  await page.goto("/products");
+  const dialog = await openProductForm(page);
+  const retail = dialog.locator("#retailPrice");
+  const field = dialog.locator("[data-money-field]").filter({ has: retail });
+
+  await retail.fill("15");
+  await field.getByRole("button", { name: "Nhân nghìn" }).click();
+  await expect(retail).toHaveValue("15k");
+  await expect(field).toContainText("= 15.000");
+
+  await field.getByRole("button", { name: "Nhân triệu" }).click(); // replaces k, doesn't stack
+  await expect(retail).toHaveValue("15tr");
+  await expect(field).toContainText("= 15.000.000");
+
+  await retail.fill("1,2");
+  await field.getByRole("button", { name: "Nhân triệu" }).click();
+  await expect(field).toContainText("= 1.200.000");
+
+  await retail.fill("15");
+  await field.getByRole("button", { name: "Thêm 000" }).click();
+  await expect(retail).toHaveValue("15000");
+
+  await retail.fill("20k");
+  await dialog.locator("#name").focus(); // leaving the box tidies the text
+  await expect(retail).toHaveValue("20.000");
+});
+
+test("admin avatar: initials first, then upload a photo, survive a reload, then remove it", async ({ page, request }) => {
+  await page.goto("/");
+  const avatar = page.getByTestId("admin-avatar");
+  // Start from a known state in case an earlier run left a photo behind.
+  await request.put("/api/profile", { data: { avatarKey: null } });
+  await page.reload();
+  await expect(page.getByTestId("admin-avatar-initials")).toBeVisible();
+  const box = await avatar.boundingBox();
+  const vw = page.viewportSize()!.width;
+  expect(box!.y).toBeLessThan(40);
+  expect(box!.x + box!.width).toBeGreaterThan(vw - 150); // far right of the header
+
+  await page.locator('input[aria-label="Chọn ảnh đại diện từ thiết bị"]').setInputFiles({ name: "me.png", mimeType: "image/png", buffer: PNG });
+  await expect(page.getByText("Đã cập nhật ảnh đại diện")).toBeVisible();
+  const img = avatar.getByRole("img", { name: "Ảnh đại diện" });
+  await expect.poll(() => img.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBeGreaterThan(0);
+  expect(await img.getAttribute("src")).toMatch(/^\/api\/images\//);
+
+  await page.reload();
+  await expect(avatar.getByRole("img", { name: "Ảnh đại diện" })).toBeVisible();
+
+  await avatar.click();
+  await page.getByRole("menuitem", { name: "Xóa ảnh đại diện" }).click();
+  await expect(page.getByTestId("admin-avatar-initials")).toBeVisible();
+});
+
+test("profile API needs a session", async ({ playwright, baseURL }) => {
+  const anon = await playwright.request.newContext({ baseURL, storageState: { cookies: [], origins: [] } });
+  expect((await anon.get("/api/profile")).status()).toBe(401);
+  expect((await anon.put("/api/profile", { data: { avatarKey: null } })).status()).toBe(401);
+  await anon.dispose();
+});

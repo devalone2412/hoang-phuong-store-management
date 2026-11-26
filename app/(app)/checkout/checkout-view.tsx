@@ -2,6 +2,8 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { Minus, Plus, Trash2 } from "lucide-react";
+import { EmptyState } from "@/components/empty-state";
+import { ScanArt } from "@/components/illustrations";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { BarcodeScanButton } from "@/components/barcode-scanner";
@@ -105,7 +107,9 @@ export function CheckoutView() {
       </form>
 
       {lines.length === 0 && (
-        <p className="py-10 text-center text-muted-foreground">{busy ? "Đang tìm…" : "Chưa có sản phẩm nào. Quét mã vạch để bắt đầu."}</p>
+        <EmptyState art={<ScanArt />} title={busy ? "Đang tìm…" : "Chưa có sản phẩm nào."} className="py-10">
+          {busy ? null : "Quét mã vạch hoặc gõ tên ở ô trên để thêm vào đơn."}
+        </EmptyState>
       )}
 
       <ul className="grid gap-2">

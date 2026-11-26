@@ -2,16 +2,17 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { LogOut } from "lucide-react";
+import { Calculator, Package, Search } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { AdminAvatar } from "@/components/admin-avatar";
+import { BrandLogo } from "@/components/brand-logo";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const links = [
-  { href: "/", label: "Tra giá" },
-  { href: "/checkout", label: "Tính tiền" },
-  { href: "/products", label: "Sản phẩm" },
+  { href: "/", label: "Tra giá", icon: Search },
+  { href: "/checkout", label: "Tính tiền", icon: Calculator },
+  { href: "/products", label: "Sản phẩm", icon: Package },
 ];
 
 export function AppNav() {
@@ -32,33 +33,36 @@ export function AppNav() {
     window.location.href = "/login";
   }
   return (
-    <header className="sticky top-0 z-10 border-b bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-5xl items-center gap-2 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))] sm:gap-4 sm:pr-[max(1rem,env(safe-area-inset-right))]">
-        <span className="font-semibold">
-          <span className="sm:hidden">HP</span>
-          <span className="hidden sm:inline">Hoàng Phương</span>
-        </span>
-        <nav className="flex min-w-0 flex-1 gap-1">
-          {links.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              onPointerEnter={() => warm(l.href)}
-              onTouchStart={() => warm(l.href)}
-              onFocus={() => warm(l.href)}
-              className={cn(
-                "whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground",
-                (l.href === "/" ? pathname === "/" : pathname.startsWith(l.href)) && "bg-muted text-foreground",
-              )}
-            >
-              {l.label}
-            </Link>
-          ))}
+    <header className="sticky top-0 z-10 border-b bg-background/90 pt-[env(safe-area-inset-top)] backdrop-blur">
+      <div className="mx-auto flex h-14 max-w-5xl items-center gap-2 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] sm:gap-4 sm:pr-[max(1rem,env(safe-area-inset-right))]">
+        <Link href="/" aria-label="Hoàng Phương, về trang tra giá" className="shrink-0 rounded-md focus-visible:outline-2 focus-visible:outline-ring">
+          <BrandLogo withWordmark className="[&>span]:hidden sm:[&>span]:inline" />
+        </Link>
+        <nav className="min-w-0 flex-1" aria-label="Chính">
+          <div className="inline-flex rounded-full bg-muted p-1">
+            {links.map((l) => {
+              const active = l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
+              return (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  aria-current={active ? "page" : undefined}
+                  onPointerEnter={() => warm(l.href)}
+                  onTouchStart={() => warm(l.href)}
+                  onFocus={() => warm(l.href)}
+                  className={cn(
+                    "flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-2 text-[13px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring sm:px-3.5 sm:text-sm",
+                    active ? "bg-card text-foreground shadow-sm ring-1 ring-border" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <l.icon className={cn("hidden size-4 sm:block", active && "text-primary")} aria-hidden="true" />
+                  {l.label}
+                </Link>
+              );
+            })}
+          </div>
         </nav>
-        <Button variant="ghost" size="sm" onClick={logout} aria-label="Đăng xuất">
-          <LogOut />
-          <span className="hidden sm:inline">Đăng xuất</span>
-        </Button>
+        <AdminAvatar onLogout={logout} />
       </div>
     </header>
   );

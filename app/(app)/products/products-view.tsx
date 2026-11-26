@@ -5,6 +5,8 @@ import { lazy, memo, Suspense, useCallback, useEffect, useRef, useState } from "
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { BarcodeScanButton } from "@/components/barcode-scanner";
+import { EmptyState } from "@/components/empty-state";
+import { EmptyBoxArt, SearchArt } from "@/components/illustrations";
 import { Pagination } from "@/components/pagination";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -201,9 +203,15 @@ export function ProductsView() {
       {/* Phones: card list. md and up: table. Only the active layout is rendered. */}
       {list.isLoading && <ListSkeleton />}
       {!list.isLoading && items.length === 0 && (
-        <p className="py-8 text-center text-muted-foreground">
-          {debouncedQ || category ? "Không có sản phẩm phù hợp." : "Chưa có sản phẩm nào."}
-        </p>
+        debouncedQ || category ? (
+          <EmptyState art={<SearchArt />} title="Không có sản phẩm phù hợp.">
+            Thử từ khóa khác hoặc bỏ bộ lọc nhóm hàng.
+          </EmptyState>
+        ) : (
+          <EmptyState art={<EmptyBoxArt />} title="Chưa có sản phẩm nào.">
+            Bấm “Thêm sản phẩm” để nhập mặt hàng đầu tiên.
+          </EmptyState>
+        )
       )}
       {items.length > 0 && isMobile && (
         <div>

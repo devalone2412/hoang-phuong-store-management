@@ -3,6 +3,8 @@
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { BarcodeScanButton } from "@/components/barcode-scanner";
+import { EmptyState } from "@/components/empty-state";
+import { SearchArt } from "@/components/illustrations";
 import { Pagination } from "@/components/pagination";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
@@ -72,7 +74,14 @@ export function LookupView() {
       {exact && <PriceCard product={exact} highlight />}
 
       {debounced && !isFetching && items.length === 0 && (
-        <p className="py-8 text-center text-muted-foreground">Không tìm thấy sản phẩm nào.</p>
+        <EmptyState art={<SearchArt />} title="Không tìm thấy sản phẩm nào.">
+          Kiểm tra chính tả, hoặc thử mã SKU hay mã vạch.
+        </EmptyState>
+      )}
+      {!debounced && (
+        <EmptyState art={<SearchArt />} title="Tra giá tại quầy">
+          Gõ tên, mã SKU hoặc quét mã vạch để xem giá.
+        </EmptyState>
       )}
       <ul className="grid gap-2">
         {items

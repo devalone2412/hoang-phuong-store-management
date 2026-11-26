@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDateTime, formatVnd, margin, parseVnd } from "./money";
+import { applyVndSuffix, formatDateTime, formatVnd, margin, parseVnd } from "./money";
 
 describe("parseVnd", () => {
   it.each([
@@ -25,6 +25,21 @@ describe("parseVnd", () => {
 
   it.each(["abc", "12.5", "1..2", "k"])("returns NaN for %s", (input) => {
     expect(parseVnd(input)).toBeNaN();
+  });
+});
+
+describe("applyVndSuffix", () => {
+  it.each([
+    ["15", "k", "15k"],
+    ["15k", "tr", "15tr"],
+    ["1,2", "tr", "1,2tr"],
+    ["15tr", "k", "15k"],
+    ["", "k", ""],
+    ["  ", "tr", ""],
+    ["15", "000", "15000"],
+    ["15k", "000", "15000"],
+  ] as const)("%s + %s -> %s", (text, suffix, expected) => {
+    expect(applyVndSuffix(text, suffix)).toBe(expected);
   });
 });
 

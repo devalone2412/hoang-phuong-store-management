@@ -46,6 +46,20 @@ export function parseVnd(input: string): number | null {
   return Number.isFinite(result) ? result : Number.NaN;
 }
 
+const SUFFIX_RE = /(k|nghin|nghìn|tr|trieu|triệu|m)$/i;
+
+/**
+ * What the quick buttons next to a price box do to the text. "15" + k -> "15k"; a suffix that is
+ * already there is replaced, not stacked ("15k" + tr -> "15tr"); "000" appends zeros ("15" -> "15000").
+ * Empty text stays empty: a bare suffix would be meaningless.
+ */
+export function applyVndSuffix(text: string, suffix: "k" | "tr" | "000"): string {
+  const t = text.trim().replace(SUFFIX_RE, "");
+  if (!t) return "";
+  if (suffix === "000") return /[.,]/.test(t) ? t : `${t}000`;
+  return `${t}${suffix}`;
+}
+
 /** Margin in VND and percent of retail, or null if cost is unknown. */
 export function margin(retail: number, cost: number | null | undefined) {
   if (cost == null || retail <= 0) return null;
