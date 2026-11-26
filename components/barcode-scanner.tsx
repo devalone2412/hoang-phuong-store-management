@@ -7,12 +7,75 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 
 // Minimal typing for the (Chromium/Android) native detector; lib.dom doesn't ship it everywhere.
 type NativeDetector = { detect(src: HTMLVideoElement): Promise<{ rawValue: string }[]> };
-type NativeDetectorCtor = new (opts?: { formats?: string[] }) => NativeDetector;
+type NativeDetectorCtor = {
+  new (opts?: { formats?: string[] }): NativeDetector;
+  getSupportedFormats?: () => Promise<string[]>;
+};
+/** Resolves to the scanned text, or null when no code is visible in this frame. May throw. */
+type Decode = (video: HTMLVideoElement) => Promise<string | null>;
 
 const FORMATS = ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39", "itf"];
 
 /** Camera permission and getUserMedia need HTTPS (or localhost). */
 const cameraSupported = () => typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
+
+/** Native detector, only when it really reads 1D barcodes (some WebKit builds expose it without them). */
+async function nativeDecoder(): Promise<Decode | null> {
+  const Native = (globalThis as { BarcodeDetector?: NativeDetectorCtor }).BarcodeDetector;
+  if (!Native) return null;
+  try {
+    const supported = (await Native.getSupportedFormats?.()) ?? [];
+    if (!supported.includes("ean_13")) return null;
+    const detector = new Native({ formats: FORMATS.filter((f) => supported.includes(f)) });
+    return async (video) => (await detector.detect(video))[0]?.rawValue || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Pure-JS decoder (iOS Safari, Firefox), loaded only when the scanner opens. We own the camera and the frame
+ * loop and only borrow zxing's decoder: its built-in video loop sizes its canvas once (iOS often still reports
+ * 0x0 then) and permanently stops on the first unexpected error, leaving a live preview that never scans.
+ */
+async function zxingDecoder(): Promise<Decode> {
+  const [{ BrowserMultiFormatReader }, { BarcodeFormat, DecodeHintType }] = await Promise.all([import("@zxing/browser"), import("@zxing/library")]);
+  const hints = new Map<number, unknown>([
+    [DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A, BarcodeFormat.UPC_E, BarcodeFormat.CODE_128, BarcodeFormat.CODE_39, BarcodeFormat.ITF]],
+    [DecodeHintType.TRY_HARDER, true],
+  ]);
+  const reader = new BrowserMultiFormatReader(hints);
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) throw new Error("no 2d canvas");
+
+  return async (video) => {
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    if (!vw || !vh) return null; // no frame yet
+    // The <video> is shown 4:3 with object-cover: only that crop is visible. Scan its middle band, which is
+    // where the guide box sits; fewer pixels decode faster and more reliably than the whole frame.
+    const visW = Math.min(vw, (vh * 4) / 3);
+    const visH = Math.min(vh, (vw * 3) / 4);
+    const w = Math.round(visW);
+    const h = Math.round(visH * 0.5);
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    ctx.drawImage(video, (vw - visW) / 2, (vh - h) / 2, w, h, 0, 0, w, h);
+    try {
+      return reader.decodeFromCanvas(canvas).getText() || null;
+    } catch {
+      return null; // NotFound / Checksum / Format: nothing readable in this frame, try the next one
+    }
+  };
+}
+
+/** iOS can resolve play() before the first frame, with videoWidth still 0. */
+async function waitForFrame(video: HTMLVideoElement, isCancelled: () => boolean) {
+  for (let i = 0; i < 60 && !isCancelled() && !video.videoWidth; i++) await new Promise((r) => setTimeout(r, 50));
+}
 
 /** Button + dialog. Calls `onDetected` once with the scanned code, then closes. */
 export function BarcodeScanButton({ onDetected, className }: { onDetected: (code: string) => void; className?: string }) {
@@ -26,7 +89,7 @@ export function BarcodeScanButton({ onDetected, className }: { onDetected: (code
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Quét mã vạch</DialogTitle>
-            <DialogDescription>Đưa mã vạch vào giữa khung hình.</DialogDescription>
+            <DialogDescription>Đưa mã vạch vào giữa khung hình, cách khoảng 15–20 cm nếu hình bị mờ.</DialogDescription>
           </DialogHeader>
           {open && (
             <Scanner
@@ -52,8 +115,9 @@ function Scanner({ onDetected }: { onDetected: (code: string) => void }) {
   useEffect(() => {
     if (!cameraSupported()) return;
     const video = videoRef.current!;
-    let stop = () => {};
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let stream: MediaStream | undefined;
 
     const found = (code: string) => {
       if (doneRef.current || !code) return;
@@ -64,45 +128,55 @@ function Scanner({ onDetected }: { onDetected: (code: string) => void }) {
 
     (async () => {
       try {
-        const Native = (globalThis as { BarcodeDetector?: NativeDetectorCtor }).BarcodeDetector;
-        if (Native) {
-          const detector = new Native({ formats: FORMATS });
-          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } } });
-          if (cancelled) return stream.getTracks().forEach((t) => t.stop());
-          video.srcObject = stream;
-          await video.play();
-          let timer: ReturnType<typeof setTimeout>;
-          const tick = async () => {
-            if (cancelled || doneRef.current) return;
-            const hits = await detector.detect(video).catch(() => []);
-            if (hits[0]) found(hits[0].rawValue);
-            else timer = setTimeout(tick, 150);
-          };
-          tick();
-          stop = () => {
-            clearTimeout(timer);
-            stream.getTracks().forEach((t) => t.stop());
-          };
-        } else {
-          // iOS Safari, Firefox: pure-JS decoder, loaded only when the scanner opens.
-          const [{ BrowserMultiFormatReader }, { BarcodeFormat, DecodeHintType }] = await Promise.all([
-            import("@zxing/browser"),
-            import("@zxing/library"),
-          ]);
-          const hints = new Map([
-            [
-              DecodeHintType.POSSIBLE_FORMATS,
-              [BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A, BarcodeFormat.UPC_E, BarcodeFormat.CODE_128, BarcodeFormat.CODE_39, BarcodeFormat.ITF],
-            ],
-          ]);
-          const reader = new BrowserMultiFormatReader(hints, { delayBetweenScanAttempts: 150 });
-          const controls = await reader.decodeFromConstraints({ video: { facingMode: { ideal: "environment" } } }, video, (result) => {
-            if (result) found(result.getText());
-          });
-          if (cancelled) controls.stop();
-          else stop = () => controls.stop();
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+          audio: false,
+        });
+        if (cancelled) return;
+        // iOS Safari needs these as DOM properties (React doesn't reflect `muted`) or play() is refused.
+        video.muted = true;
+        video.playsInline = true;
+        video.srcObject = stream;
+        await video.play();
+        await waitForFrame(video, () => cancelled);
+        if (cancelled) return;
+
+        const native = await nativeDecoder();
+        let decode: Decode = native ?? (await zxingDecoder());
+        let usingNative = !!native;
+        if (cancelled) return;
+
+        if (!usingNative) {
+          // Many phone cameras default to a wide lens that can't focus up close; a little zoom helps.
+          const track = stream.getVideoTracks()[0];
+          const zoom = (track?.getCapabilities?.() as { zoom?: { max: number } } | undefined)?.zoom;
+          if (zoom) await track.applyConstraints({ advanced: [{ zoom: Math.min(1.5, zoom.max) }] } as unknown as MediaTrackConstraints).catch(() => {});
         }
+
+        let failures = 0;
+        const tick = async () => {
+          if (cancelled || doneRef.current) return;
+          try {
+            const code = await decode(video);
+            failures = 0;
+            if (code) return found(code);
+          } catch {
+            // A native detector that keeps throwing would otherwise leave a preview that never scans.
+            if (usingNative && ++failures >= 2) {
+              try {
+                decode = await zxingDecoder();
+                usingNative = false;
+              } catch {
+                if (!cancelled) setError("Không mở được camera.");
+                return;
+              }
+            }
+          }
+          if (!cancelled) timer = setTimeout(tick, 150);
+        };
+        tick();
       } catch (e) {
+        if (cancelled) return;
         const name = e instanceof DOMException ? e.name : "";
         setError(
           name === "NotAllowedError"
@@ -116,7 +190,9 @@ function Scanner({ onDetected }: { onDetected: (code: string) => void }) {
 
     return () => {
       cancelled = true;
-      stop();
+      clearTimeout(timer);
+      stream?.getTracks().forEach((t) => t.stop());
+      video.srcObject = null;
     };
   }, []);
 
