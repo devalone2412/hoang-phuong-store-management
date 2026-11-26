@@ -28,6 +28,8 @@ jobs:
           cache: npm
 
       - run: npm ci
+      # .cloudflare/types (the `cloudflare:workers` module types) is generated, not committed.
+      - run: npx cf workers types
       - run: npm run typecheck
       - run: npm test
       # Catches build breakage on pull requests; the deploy job builds again from the same commit.
