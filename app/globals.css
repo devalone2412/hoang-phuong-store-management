@@ -1,0 +1,135 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* "Jade & price-tag" palette. See the plan, section 4. */
+:root {
+  --radius: 0.625rem;
+  --background: #f7f8f6;
+  --foreground: #17201d;
+  --card: #ffffff;
+  --card-foreground: #17201d;
+  --popover: #ffffff;
+  --popover-foreground: #17201d;
+  --primary: #0e6b55;
+  --primary-foreground: #ffffff;
+  --secondary: #edf1ee;
+  --secondary-foreground: #17201d;
+  --muted: #edf1ee;
+  --muted-foreground: #5b6b65;
+  --accent: #e3f1ec;
+  --accent-foreground: #0b4f40;
+  --destructive: #c2362f;
+  --border: #dde3df;
+  --input: #dde3df;
+  --ring: #0e6b55;
+  --price-tag: #f4b400;
+  --price-tag-foreground: #17201d;
+  --success: #15803d;
+  --warning: #b45309;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #17201d;
+  --sidebar-primary: #0e6b55;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e3f1ec;
+  --sidebar-accent-foreground: #0b4f40;
+  --sidebar-border: #dde3df;
+  --sidebar-ring: #0e6b55;
+}
+
+.dark {
+  --background: #121917;
+  --foreground: #e8edea;
+  --card: #1a2420;
+  --card-foreground: #e8edea;
+  --popover: #1a2420;
+  --popover-foreground: #e8edea;
+  --primary: #3fbf9a;
+  --primary-foreground: #0b1512;
+  --secondary: #222d29;
+  --secondary-foreground: #e8edea;
+  --muted: #222d29;
+  --muted-foreground: #9aaba4;
+  --accent: #1f3a32;
+  --accent-foreground: #d6f0e7;
+  --destructive: #f0645c;
+  --border: #2c3833;
+  --input: #2c3833;
+  --ring: #3fbf9a;
+  --price-tag: #f4b400;
+  --price-tag-foreground: #17201d;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --sidebar: #161e1b;
+  --sidebar-foreground: #e8edea;
+  --sidebar-primary: #3fbf9a;
+  --sidebar-primary-foreground: #0b1512;
+  --sidebar-accent: #1f3a32;
+  --sidebar-accent-foreground: #d6f0e7;
+  --sidebar-border: #2c3833;
+  --sidebar-ring: #3fbf9a;
+}
+
+@theme inline {
+  --font-sans: var(--font-be-vietnam-pro), ui-sans-serif, system-ui, sans-serif;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-price-tag: var(--price-tag);
+  --color-price-tag-foreground: var(--price-tag-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-variant-numeric: tabular-nums;
+  }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

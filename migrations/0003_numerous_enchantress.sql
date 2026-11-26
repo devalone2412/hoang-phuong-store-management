@@ -1,0 +1,1 @@
+CREATE INDEX `products_sku_lower_idx` ON `products` (lower("sku")) WHERE "products"."deleted_at" IS NULL;

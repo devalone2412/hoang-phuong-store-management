@@ -1,0 +1,68 @@
+name: CI/CD
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push cancels an older CI run, but never a deploy that is already in progress.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  ci:
+    name: Typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      # Catches build breakage on pull requests; the deploy job builds again from the same commit.
+      - run: npm run build
+
+  deploy:
+    name: Migrate D1 and deploy
+    needs: ci
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Create a "production" environment in the repo settings to add required reviewers if you want a manual gate.
+    environment: production
+    # Only one deploy at a time, and never cancel one halfway through a migration.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # Additive migrations first (new tables/indexes), so the new code never runs against an old schema.
+      # Applied migrations are recorded in D1 (d1_migrations), so re-runs only apply what is new.
+      - name: Apply D1 migrations
+        run: npx cf d1 migrations apply "${{ vars.D1_DATABASE_ID }}"
+
+      # Builds with Vite and uploads + promotes the Worker (config: cloudflare.config.ts).
+      - name: Build and deploy Worker
+        run: npm run deploy
