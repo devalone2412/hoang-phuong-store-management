@@ -25,7 +25,8 @@ export function ProductForm(props: Props) {
   // Remount per product so the fields reset without effects.
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
+      {/* Header and footer stay put; only the fields scroll, so Lưu is always reachable on any screen height. */}
+      <DialogContent className="flex max-h-[calc(100svh-1.5rem)] flex-col gap-0 overflow-hidden p-0 sm:max-h-[min(52rem,calc(100svh-3rem))] sm:max-w-xl">
         <FormBody key={props.product?.id ?? "new"} {...props} />
       </DialogContent>
     </Dialog>
@@ -143,12 +144,13 @@ function FormBody({ onOpenChange, product, units, categories }: Props) {
   );
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-4">
-      <DialogHeader>
+    <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
+      <DialogHeader className="shrink-0 border-b px-5 py-4 pr-14 text-left sm:px-6">
         <DialogTitle>{product ? "Sửa sản phẩm" : "Thêm sản phẩm"}</DialogTitle>
         {product && <DialogDescription>Cập nhật lần cuối: {formatDateTime(product.updatedAt)}</DialogDescription>}
       </DialogHeader>
 
+      <div className="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6">
       <div className="flex items-center gap-3">
         <ProductThumb product={{ name: product?.name ?? "Ảnh sản phẩm", imageKey }} className="size-20" />
         <div className="flex flex-wrap gap-2">
@@ -190,7 +192,7 @@ function FormBody({ onOpenChange, product, units, categories }: Props) {
 
       <div className="grid gap-1.5">
         <Label htmlFor="name">Tên sản phẩm *</Label>
-        <Input id="name" name="name" defaultValue={product?.name} autoFocus />
+        <Input id="name" name="name" defaultValue={product?.name} autoFocus={!window.matchMedia("(pointer: coarse)").matches} />
         {err("name")}
       </div>
 
@@ -209,12 +211,12 @@ function FormBody({ onOpenChange, product, units, categories }: Props) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-x-3 gap-y-1 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-3">
         {priceInput("retailPrice", "Giá lẻ *")}
         {priceInput("wholesalePrice", "Giá sỉ")}
         {priceInput("costPrice", "Giá vốn", "col-span-2 sm:col-span-1")}
       </div>
-      <p className="-mt-2 text-xs text-muted-foreground">Nhập nhanh: gõ 15 rồi bấm k = 15.000 · gõ 1,2 rồi bấm tr = 1.200.000</p>
+      <p className="text-xs text-muted-foreground">Gõ 15 rồi bấm k = 15.000 · gõ 1,2 rồi bấm tr = 1.200.000</p>
       <div className="grid gap-2">
         <div className="flex items-center justify-between">
           <Label>Giá combo</Label>
@@ -299,11 +301,13 @@ function FormBody({ onOpenChange, product, units, categories }: Props) {
         {err("note")}
       </div>
 
-      <DialogFooter>
-        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+      </div>
+
+      <DialogFooter className="grid shrink-0 grid-cols-2 gap-2 border-t bg-background px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:flex sm:px-6">
+        <Button type="button" variant="outline" className="h-11 sm:h-9" onClick={() => onOpenChange(false)}>
           Hủy
         </Button>
-        <Button type="submit" disabled={save.isPending}>
+        <Button type="submit" className="h-11 sm:h-9" disabled={save.isPending}>
           {save.isPending ? "Đang lưu…" : "Lưu"}
         </Button>
       </DialogFooter>
