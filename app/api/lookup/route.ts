@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { getDb } from "@/db/client";
-import { handler } from "@/server/http";
-import { lookupProducts } from "@/server/products.repo";
+import { staffHandler } from "@/server/http";
+import { forViewer, lookupProducts } from "@/server/products.repo";
 
 const querySchema = z.object({
   q: z.string().trim().max(100).default(""),
@@ -9,7 +9,12 @@ const querySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(50).default(20),
 });
 
-export const GET = handler(async (req: Request) => {
+export const GET = staffHandler(async (session, req: Request) => {
   const { q, page, pageSize } = querySchema.parse(Object.fromEntries(new URL(req.url).searchParams));
-  return Response.json(await lookupProducts(getDb(), q, { page, pageSize }));
+  const res = await lookupProducts(getDb(), q, { page, pageSize });
+  return Response.json({
+    ...res,
+    exact: forViewer(res.exact, session.role),
+    items: res.items.map((p) => forViewer(p, session.role)),
+  });
 });

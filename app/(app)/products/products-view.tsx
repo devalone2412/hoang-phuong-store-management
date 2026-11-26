@@ -310,6 +310,7 @@ function ProductInfo({ p }: { p: Product }) {
       <p className="[overflow-wrap:anywhere] font-medium">{p.name}</p>
       <p className="[overflow-wrap:anywhere] text-xs text-muted-foreground">{[p.sku, p.category, p.unit].filter(Boolean).join(" · ")}</p>
       {p.barcodes.length > 0 && <p className="[overflow-wrap:anywhere] text-xs text-muted-foreground">Mã vạch: {p.barcodes.join(", ")}</p>}
+      {p.note && <p className="whitespace-pre-line [overflow-wrap:anywhere] text-xs text-muted-foreground">Ghi chú: {p.note}</p>}
       <p className="text-xs text-muted-foreground">Cập nhật: {formatDateTime(p.updatedAt)}</p>
     </>
   );

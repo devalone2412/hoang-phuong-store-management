@@ -1,15 +1,20 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { isAuthenticatedRequest } from "@/server/auth";
+import { getSessionFromToken } from "@/server/auth";
 
-// API routes answer 401 themselves (see server/http.ts); this guards pages only.
+const staffMayOpen = (path: string) => path === "/" || path === "/checkout" || path.startsWith("/checkout/");
+
+// API routes answer 401/403 themselves (see server/http.ts); this guards pages only.
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  const authed = await isAuthenticatedRequest(req.cookies.get("hp_session")?.value);
+  const session = await getSessionFromToken(req.cookies.get("hp_session")?.value);
 
   if (pathname === "/login") {
-    return authed ? NextResponse.redirect(new URL("/", req.url)) : NextResponse.next();
+    return session ? NextResponse.redirect(new URL("/", req.url)) : NextResponse.next();
   }
-  if (authed) return NextResponse.next();
+  if (session) {
+    const allowed = session.role === "admin" || staffMayOpen(pathname);
+    return allowed ? NextResponse.next() : NextResponse.redirect(new URL("/", req.url));
+  }
 
   const url = new URL("/login", req.url);
   if (pathname !== "/") url.searchParams.set("next", pathname);

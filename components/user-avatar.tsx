@@ -18,18 +18,19 @@ import { thumbKey } from "@/lib/image-keys";
 import { uploadImage } from "@/lib/upload-image";
 import { cn } from "@/lib/utils";
 
-type Profile = { username: string; avatarKey: string | null };
+export type Profile = { role: "admin" | "staff"; username: string; displayName: string | null; avatarKey: string | null };
 
 const initials = (name: string) => name.trim().slice(0, 2).toUpperCase() || "HP";
+const ROLE_LABEL = { admin: "Quản trị viên", staff: "Thành viên" } as const;
 
 /** Round photo, or initials on jade when there is none. */
-function Face({ profile, className, busy }: { profile?: Profile; className?: string; busy?: boolean }) {
+export function Face({ profile, className, busy }: { profile?: Profile; className?: string; busy?: boolean }) {
   return (
     <span className={cn("relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-sm font-bold text-primary-foreground", className)}>
       {profile?.avatarKey ? (
         <AvatarImg key={profile.avatarKey} imageKey={profile.avatarKey} />
       ) : (
-        <span data-testid="admin-avatar-initials">{initials(profile?.username ?? "")}</span>
+        <span data-testid="admin-avatar-initials">{initials(profile?.displayName || profile?.username || "")}</span>
       )}
       {busy && (
         <span className="absolute inset-0 flex items-center justify-center bg-black/55 text-white" role="status" aria-label="Đang tải ảnh">
@@ -40,8 +41,8 @@ function Face({ profile, className, busy }: { profile?: Profile; className?: str
   );
 }
 
-/** Admin's photo at the far right of the header. Its menu changes the photo and holds log out. */
-export function AdminAvatar({ onLogout }: { onLogout: () => void }) {
+/** The signed-in user's photo at the far right of the header. Its menu changes the photo and holds log out. */
+export function UserAvatar({ onLogout }: { onLogout: () => void }) {
   const qc = useQueryClient();
   const { data } = useQuery({
     queryKey: ["profile"],
@@ -91,8 +92,8 @@ export function AdminAvatar({ onLogout }: { onLogout: () => void }) {
             <div className="flex items-center gap-3 px-2 py-2.5">
               <Face profile={data} className="size-12 text-base" />
               <div className="min-w-0">
-                <p className="truncate font-semibold">{data?.username || "Quản trị viên"}</p>
-                <p className="text-xs text-muted-foreground">Quản trị viên</p>
+                <p className="truncate font-semibold">{data?.displayName || data?.username || "Quản trị viên"}</p>
+                <p className="text-xs text-muted-foreground">{ROLE_LABEL[data?.role ?? "admin"]}</p>
               </div>
             </div>
             <DropdownMenuSeparator />

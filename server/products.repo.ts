@@ -6,7 +6,7 @@ import { normalizeVi, searchTerms } from "@/lib/text";
 
 export class ConflictError extends Error {
   constructor(
-    public field: "sku" | "barcodes",
+    public field: "sku" | "barcodes" | "username",
     message: string,
   ) {
     super(message);
@@ -183,6 +183,11 @@ function exactQuery(db: Db, code: string | null) {
 export async function findByCode(db: Db, code: string) {
   const [row] = await exactQuery(db, code.trim());
   return row ? fromRow(row) : null;
+}
+
+/** Staff never see what the shop pays for a product. */
+export function forViewer<T extends Product | null>(product: T, role: "admin" | "staff"): T {
+  return product && role === "staff" ? { ...product, costPrice: null } : product;
 }
 
 export async function getProduct(db: Db, id: string) {

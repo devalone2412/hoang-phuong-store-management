@@ -1,8 +1,8 @@
 import { env } from "cloudflare:workers";
 import { IMAGE_KEY_RE, THUMB_KEY_RE } from "@/features/products/schema";
-import { handler, jsonError } from "@/server/http";
+import { jsonError, staffHandler } from "@/server/http";
 
-export const GET = handler(async (_req: Request, { params }: { params: Promise<{ key: string }> }) => {
+export const GET = staffHandler(async (_session, _req: Request, { params }: { params: Promise<{ key: string }> }) => {
   const { key } = await params;
   if (!IMAGE_KEY_RE.test(key) && !THUMB_KEY_RE.test(key)) return jsonError(404, "not_found", "Không tìm thấy ảnh");
   const obj = await env.IMAGES.get(key);

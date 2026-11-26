@@ -2,9 +2,9 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { Calculator, Package, Search } from "lucide-react";
+import { Calculator, Package, Search, Users } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { AdminAvatar } from "@/components/admin-avatar";
+import { UserAvatar } from "@/components/user-avatar";
 import { BrandLogo } from "@/components/brand-logo";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -12,10 +12,12 @@ import { cn } from "@/lib/utils";
 const links = [
   { href: "/", label: "Tra giá", icon: Search },
   { href: "/checkout", label: "Tính tiền", icon: Calculator },
-  { href: "/products", label: "Sản phẩm", icon: Package },
+  { href: "/products", label: "Sản phẩm", icon: Package, adminOnly: true },
+  { href: "/staff", label: "Thành viên", icon: Users, adminOnly: true },
 ];
 
-export function AppNav() {
+export function AppNav({ role }: { role: "admin" | "staff" }) {
+  const visible = links.filter((l) => role === "admin" || !("adminOnly" in l));
   const pathname = usePathname();
   const qc = useQueryClient();
   // Start loading the product list as soon as a tap/hover on its tab begins. Query keys and URLs
@@ -40,7 +42,7 @@ export function AppNav() {
         </Link>
         <nav className="min-w-0 flex-1" aria-label="Chính">
           <div className="inline-flex rounded-full bg-muted p-1">
-            {links.map((l) => {
+            {visible.map((l) => {
               const active = l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
               return (
                 <Link
@@ -62,7 +64,7 @@ export function AppNav() {
             })}
           </div>
         </nav>
-        <AdminAvatar onLogout={logout} />
+        <UserAvatar onLogout={logout} />
       </div>
     </header>
   );

@@ -68,3 +68,21 @@ export const appSettings = sqliteTable("app_settings", {
   value: text("value"),
   updatedAt: integer("updated_at").notNull(),
 });
+
+/** Non-admin logins (store staff). The admin is not a row here: it comes from the ADMIN_* secrets. */
+export const users = sqliteTable("users", {
+  id: text("id").primaryKey(),
+  /** Lowercase; unique. */
+  username: text("username").notNull().unique(),
+  displayName: text("display_name"),
+  /** `pbkdf2$100000$<saltB64>$<hashB64>`, see server/password.ts. */
+  passwordHash: text("password_hash").notNull(),
+  avatarKey: text("avatar_key"),
+  /** Bumped on password reset / lock; sessions carrying an older value stop working. */
+  sessionVersion: integer("session_version").notNull().default(1),
+  disabledAt: integer("disabled_at"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export type UserRow = typeof users.$inferSelect;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { ScanArt } from "@/components/illustrations";
@@ -15,6 +15,8 @@ import type { Product } from "@/features/products/schema";
 import { ApiError, api } from "@/lib/api";
 import { formatVnd } from "@/lib/money";
 
+const SUGGEST_SIZE = 8;
+
 type Line = { product: Product; qty: number };
 
 const MAX_QTY = 9999;
@@ -27,6 +29,21 @@ export function CheckoutView() {
   const [busy, setBusy] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const restored = useRef(false);
+
+  // Name search: suggestions for what is being typed; tapping one adds it to the cart.
+  const [debounced, setDebounced] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(code.trim()), 200);
+    return () => clearTimeout(t);
+  }, [code]);
+  const query = code.trim() ? debounced : "";
+  const { data: suggest } = useQuery({
+    queryKey: ["lookup", query, "checkout"],
+    queryFn: ({ signal }) => api<{ items: Product[] }>(`/api/lookup?q=${encodeURIComponent(query)}&pageSize=${SUGGEST_SIZE}`, { signal }),
+    enabled: query.length >= 2,
+    placeholderData: keepPreviousData,
+  });
+  const suggestions = query.length >= 2 ? (suggest?.items ?? []) : [];
 
   // Keep the cart across tab switches and reloads (this browser tab only). Storage can be blocked.
   useEffect(() => {
@@ -81,6 +98,14 @@ export function CheckoutView() {
     void scan(q);
   }
 
+  function pick(p: Product) {
+    add(p);
+    navigator.vibrate?.(30);
+    setCode("");
+    setDebounced("");
+    inputRef.current?.focus();
+  }
+
   const setQty = (id: string, qty: number) =>
     setLines((list) => list.map((l) => (l.product.id === id ? { ...l, qty: Math.min(MAX_QTY, Math.max(1, qty)) } : l)));
   const remove = (id: string) => setLines((list) => list.filter((l) => l.product.id !== id));
@@ -97,14 +122,31 @@ export function CheckoutView() {
           autoFocus
           inputMode="search"
           autoComplete="off"
-          placeholder="Quét hoặc nhập mã vạch / SKU, rồi Enter"
+          placeholder="Quét mã, nhập SKU hoặc tìm theo tên sản phẩm"
           value={code}
           onChange={(e) => setCode(e.target.value)}
           className="h-12 flex-1 text-base"
-          aria-label="Mã vạch hoặc SKU"
+          aria-label="Mã vạch, SKU hoặc tên sản phẩm"
         />
         <BarcodeScanButton className="size-12 shrink-0" onDetected={(c) => void scan(c)} />
       </form>
+
+      {suggestions.length > 0 && (
+        <ul className="grid gap-1 rounded-lg border bg-card p-1" aria-label="Gợi ý sản phẩm">
+          {suggestions.map((p) => (
+            <li key={p.id}>
+              <button type="button" onClick={() => pick(p)} className="flex w-full items-center gap-3 rounded-md p-2 text-left hover:bg-accent">
+                <ProductThumb product={p} className="size-10" />
+                <span className="min-w-0 flex-1">
+                  <span className="block font-medium [overflow-wrap:anywhere]">{p.name}</span>
+                  <span className="block text-xs text-muted-foreground [overflow-wrap:anywhere]">{[p.sku, p.unit].filter(Boolean).join(" · ")}</span>
+                </span>
+                <span className="shrink-0 text-sm font-semibold tabular-nums">{formatVnd(p.retailPrice)}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {lines.length === 0 && (
         <EmptyState art={<ScanArt />} title={busy ? "Đang tìm…" : "Chưa có sản phẩm nào."} className="py-10">

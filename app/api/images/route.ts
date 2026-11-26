@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { thumbKey } from "@/features/products/schema";
-import { handler, jsonError } from "@/server/http";
+import { jsonError, staffHandler } from "@/server/http";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_THUMB_BYTES = 200 * 1024;
@@ -13,7 +13,7 @@ function sniff(b: Uint8Array): { ext: "jpg" | "png" | "webp"; type: string } | n
   return riff ? { ext: "webp", type: "image/webp" } : null;
 }
 
-export const POST = handler(async (req: Request) => {
+export const POST = staffHandler(async (_session, req: Request) => {
   const form = await req.formData().catch(() => null);
   const file = form?.get("file");
   if (!(file instanceof File)) return jsonError(400, "invalid", "Chưa chọn ảnh");

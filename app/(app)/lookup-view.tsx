@@ -116,6 +116,7 @@ function PriceCard({ product: p, highlight }: { product: Product; highlight?: bo
         <div className="min-w-0">
           <p className="font-medium [overflow-wrap:anywhere]">{p.name}</p>
           <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{[p.sku, p.category, p.unit].filter(Boolean).join(" · ")}</p>
+          {p.note && <p className="mt-1 whitespace-pre-line text-sm [overflow-wrap:anywhere]">Ghi chú: {p.note}</p>}
         </div>
         <PriceList product={p} />
       </div>
