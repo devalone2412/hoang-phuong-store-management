@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 
 type Props = {
   id?: string;
+  autoFocus?: boolean;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
@@ -25,7 +26,7 @@ const CHIPS = [
  * under the box, and a small yellow tag says what the text means (15k = 15.000 ₫).
  * Figures are right-aligned like a till display; leaving the box tidies "20k" into "20.000".
  */
-export function MoneyInput({ id, value, onChange, placeholder, className, ...rest }: Props) {
+export function MoneyInput({ id, value, onChange, placeholder, className, autoFocus, ...rest }: Props) {
   const ref = useRef<HTMLInputElement>(null);
   const parsed = parseVnd(value);
   const valid = parsed !== null && !Number.isNaN(parsed);
@@ -38,6 +39,7 @@ export function MoneyInput({ id, value, onChange, placeholder, className, ...res
         <Input
           ref={ref}
           id={id}
+          autoFocus={autoFocus}
           inputMode="decimal"
           placeholder={placeholder}
           aria-label={rest["aria-label"]}

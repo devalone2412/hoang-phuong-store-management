@@ -6,7 +6,6 @@ const valid = { name: "Nước mắm Nam Ngư 500ml", unit: "chai", retailPrice:
 describe("productInputSchema", () => {
   it("accepts a minimal product and nulls the optionals", () => {
     const r = productInputSchema.parse(valid);
-    expect(r.wholesalePrice).toBeNull();
     expect(r.costPrice).toBeNull();
     expect(r.sku).toBeNull();
     expect(r.barcodes).toEqual([]);
@@ -37,20 +36,14 @@ describe("productInputSchema", () => {
     expect(productInputSchema.safeParse({ ...valid, retailPrice: 10.5 }).success).toBe(false);
   });
 
-  it("does not reject a wholesale price above retail (warning only)", () => {
-    expect(productInputSchema.safeParse({ ...valid, wholesalePrice: 99999 }).success).toBe(true);
-  });
 });
 
 describe("priceWarnings", () => {
-  it("warns when wholesale > retail", () => {
-    expect(priceWarnings({ retailPrice: 100, wholesalePrice: 120 })).toHaveLength(1);
-  });
-  it("warns when cost > wholesale", () => {
-    expect(priceWarnings({ retailPrice: 100, wholesalePrice: 90, costPrice: 95 })).toHaveLength(1);
+  it("warns when cost > retail", () => {
+    expect(priceWarnings({ retailPrice: 100, costPrice: 120 })).toHaveLength(1);
   });
   it("is quiet for sensible prices", () => {
-    expect(priceWarnings({ retailPrice: 100, wholesalePrice: 90, costPrice: 70 })).toEqual([]);
+    expect(priceWarnings({ retailPrice: 100, costPrice: 70 })).toEqual([]);
   });
 });
 
@@ -84,5 +77,27 @@ describe("combos and image", () => {
   it("warns when a combo is not cheaper than buying singly", () => {
     expect(comboWarnings(5000, [{ quantity: 3, price: 15000 }])).toHaveLength(1);
     expect(comboWarnings(5000, [{ quantity: 3, price: 12000 }])).toEqual([]);
+  });
+
+  describe("sold by weight", () => {
+    it("forces the unit to kg, even when none is sent", () => {
+      const { unit: _unit, ...noUnit } = valid;
+      const r = productInputSchema.parse({ ...noUnit, soldByWeight: true });
+      expect(r.soldByWeight).toBe(true);
+      expect(r.unit).toBe("kg");
+      expect(productInputSchema.parse({ ...valid, soldByWeight: true, unit: "bao" }).unit).toBe("kg");
+    });
+
+    it("rejects combos", () => {
+      const r = productInputSchema.safeParse({ ...valid, soldByWeight: true, combos: [{ quantity: 2, price: 50000 }] });
+      expect(r.success).toBe(false);
+    });
+
+    it("still requires a unit for everything else", () => {
+      const { unit: _unit, ...noUnit } = valid;
+      const r = productInputSchema.safeParse(noUnit);
+      expect(r.success).toBe(false);
+      expect(productInputSchema.parse(valid).soldByWeight).toBe(false);
+    });
   });
 });

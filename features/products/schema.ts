@@ -40,11 +40,15 @@ const barcodesSchema = z
   .default([]);
 
 /** Shared by the form (react-hook-form) and the API route handlers. */
-export const productInputSchema = z.object({
+export const WEIGHT_UNIT = "kg";
+
+const productFields = z.object({
   name: z.string().trim().min(1, "Nhập tên sản phẩm").max(200, "Tối đa 200 ký tự"),
-  unit: z.string().trim().min(1, "Nhập đơn vị tính").max(30, "Tối đa 30 ký tự"),
+  // Optional here: weighed products always use kg. Required for the rest by the refine below.
+  unit: z.string().trim().max(30, "Tối đa 30 ký tự").default(""),
+  /** Sold by weight: `retailPrice` is per kg, the unit is kg and combos don't apply. */
+  soldByWeight: z.boolean().default(false),
   retailPrice: price,
-  wholesalePrice: price.nullish().transform((v) => v ?? null),
   costPrice: price.nullish().transform((v) => v ?? null),
   category: optionalText(60),
   sku: optionalText(40),
@@ -63,20 +67,26 @@ export const productInputSchema = z.object({
     .transform((v) => v ?? null),
 });
 
+export const productInputSchema = productFields
+  .superRefine((p, ctx) => {
+    if (!p.soldByWeight && !p.unit) ctx.addIssue({ code: "custom", path: ["unit"], message: "Nhập đơn vị tính" });
+    if (p.soldByWeight && p.combos.length > 0) {
+      ctx.addIssue({ code: "custom", path: ["combos"], message: "Hàng bán theo cân không dùng combo" });
+    }
+  })
+  .transform((p) => (p.soldByWeight ? { ...p, unit: WEIGHT_UNIT } : p));
+
 export type ProductInput = z.input<typeof productInputSchema>;
 export type ProductData = z.output<typeof productInputSchema>;
 
 /** Price-order sanity check. A warning for the UI, never a validation error. */
 export function priceWarnings(p: {
   retailPrice?: number | null;
-  wholesalePrice?: number | null;
   costPrice?: number | null;
 }): string[] {
   const out: string[] = [];
-  const { retailPrice: r, wholesalePrice: w, costPrice: c } = p;
-  if (r != null && w != null && w > r) out.push("Giá sỉ đang cao hơn giá lẻ.");
-  if (w != null && c != null && c > w) out.push("Giá vốn đang cao hơn giá sỉ.");
-  else if (w == null && r != null && c != null && c > r) out.push("Giá vốn đang cao hơn giá lẻ.");
+  const { retailPrice: r, costPrice: c } = p;
+  if (r != null && c != null && c > r) out.push("Giá vốn đang cao hơn giá lẻ.");
   return out;
 }
 
@@ -97,8 +107,9 @@ export type Product = {
   barcodes: string[];
   unit: string;
   category: string | null;
+  /** True: `retailPrice` is per kg and quantities are weights in grams. */
+  soldByWeight: boolean;
   retailPrice: number;
-  wholesalePrice: number | null;
   costPrice: number | null;
   combos: Combo[];
   imageKey: string | null;

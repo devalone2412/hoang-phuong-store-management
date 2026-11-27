@@ -1,12 +1,13 @@
 import { and, asc, desc, eq, getTableColumns, inArray, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
 import type { Db } from "@/db/client";
-import { productBarcodes, products, type ProductRow } from "@/db/schema";
+import { categories, productBarcodes, products, type ProductRow } from "@/db/schema";
+import { categoryKey } from "@/features/categories/schema";
 import type { ListQuery, Product, ProductData } from "@/features/products/schema";
 import { normalizeVi, searchTerms } from "@/lib/text";
 
 export class ConflictError extends Error {
   constructor(
-    public field: "sku" | "barcodes" | "username",
+    public field: "sku" | "barcodes" | "username" | "category" | "name",
     message: string,
   ) {
     super(message);
@@ -21,8 +22,8 @@ export function toProduct(r: ProductRow, barcodes: string[]): Product {
     barcodes,
     unit: r.unit,
     category: r.category,
+    soldByWeight: r.soldByWeight,
     retailPrice: r.retailPrice,
-    wholesalePrice: r.wholesalePrice,
     costPrice: r.costPrice,
     combos: r.combos ?? [],
     imageKey: r.imageKey,
@@ -35,10 +36,13 @@ export function toProduct(r: ProductRow, barcodes: string[]): Product {
 /**
  * Product columns plus its live barcodes (primary first) as a JSON array, read in the same query so
  * a read never needs a second D1 round trip.
+ *
+ * The outer id is written as raw SQL on purpose: in a single-table select Drizzle strips table
+ * prefixes, which turns `product_id = id` into a comparison with product_barcodes.id (always empty).
  */
 const productSelect = {
   ...getTableColumns(products),
-  barcodes: sql<string>`(SELECT json_group_array(b.barcode) FROM (SELECT ${productBarcodes.barcode} AS barcode FROM ${productBarcodes} WHERE ${productBarcodes.productId} = ${products.id} AND ${productBarcodes.deletedAt} IS NULL ORDER BY ${productBarcodes.position}) b)`.as(
+  barcodes: sql<string>`(SELECT json_group_array(b.barcode) FROM (SELECT ${productBarcodes.barcode} AS barcode FROM ${productBarcodes} WHERE ${productBarcodes.productId} = ${sql.raw('"products"."id"')} AND ${productBarcodes.deletedAt} IS NULL ORDER BY ${productBarcodes.position}) b)`.as(
     "barcodes",
   ),
 };
@@ -124,15 +128,21 @@ export async function listProducts(db: Db, query: ListQuery) {
  * Quick price lookup, paginated. An exact barcode/SKU hit is returned as `exact` (page 1 only)
  * so the UI can pin its price card (barcode scanners type the code then press Enter).
  */
-export async function lookupProducts(db: Db, rawQuery: string, opts: { page?: number; pageSize?: number } = {}) {
+export async function lookupProducts(
+  db: Db,
+  rawQuery: string,
+  opts: { page?: number; pageSize?: number; category?: string } = {},
+) {
   const page = Math.max(1, opts.page ?? 1);
   const pageSize = Math.min(50, Math.max(1, opts.pageSize ?? 20));
   const q = rawQuery.trim();
-  if (!q) return { exact: null, items: [] as Product[], total: 0, page, pageSize };
+  const category = opts.category?.trim() || undefined;
+  // Nothing to look for: no text and no group picked.
+  if (!q && !category) return { exact: null, items: [] as Product[], total: 0, page, pageSize };
 
   const terms = searchTerms(q);
   const first = terms[0] ?? "";
-  const where = and(isNull(products.deletedAt), searchWhere(q));
+  const where = and(isNull(products.deletedAt), category ? eq(products.category, category) : undefined, searchWhere(q));
 
   const [rows, [{ total }], exactRows] = await db.batch([
     db
@@ -148,7 +158,7 @@ export async function lookupProducts(db: Db, rawQuery: string, opts: { page?: nu
       .offset((page - 1) * pageSize),
     db.select({ total: sql<number>`count(*)` }).from(products).where(where),
     // Only page 1 pins an exact hit; other pages run a cheap no-op so the batch keeps one shape.
-    exactQuery(db, page === 1 ? q : null),
+    exactQuery(db, page === 1 && q ? q : null),
   ]);
 
   const exact = exactRows[0] ? fromRow(exactRows[0]) : null;
@@ -207,8 +217,8 @@ function productColumns(data: ProductData) {
     sku: data.sku,
     unit: data.unit,
     category: data.category,
+    soldByWeight: data.soldByWeight,
     retailPrice: data.retailPrice,
-    wholesalePrice: data.wholesalePrice,
     costPrice: data.costPrice,
     combos: data.combos,
     imageKey: data.imageKey,
@@ -216,7 +226,23 @@ function productColumns(data: ProductData) {
   };
 }
 
-export async function createProduct(db: Db, data: ProductData) {
+/**
+ * The category must be one the admin created. Matching ignores case and the stored spelling is the
+ * list's, so "gạo" saves as "Gạo". null (no group) is always fine.
+ */
+async function canonicalCategory(db: Db, name: string | null): Promise<string | null> {
+  if (!name) return null;
+  const [row] = await db
+    .select({ name: categories.name })
+    .from(categories)
+    .where(eq(categories.nameKey, categoryKey(name)))
+    .limit(1);
+  if (!row) throw new ConflictError("category", "Nhóm hàng không tồn tại");
+  return row.name;
+}
+
+export async function createProduct(db: Db, input: ProductData) {
+  const data = { ...input, category: await canonicalCategory(db, input.category) };
   const now = Date.now();
   const row = {
     id: crypto.randomUUID(),
@@ -236,7 +262,8 @@ export async function createProduct(db: Db, data: ProductData) {
 }
 
 /** Returns the updated product and the image key it had before (so the caller can clean up R2). */
-export async function updateProduct(db: Db, id: string, data: ProductData) {
+export async function updateProduct(db: Db, id: string, input: ProductData) {
+  const data = { ...input, category: await canonicalCategory(db, input.category) };
   const [live] = await db
     .select({ id: products.id, imageKey: products.imageKey })
     .from(products)
@@ -315,22 +342,18 @@ export async function bulkSoftDelete(db: Db, ids: string[]) {
   return deleted;
 }
 
-/** Distinct units and categories, used by the form comboboxes and the category filter. */
+/** Distinct units (for the form's suggestions) and the managed category names (form and filters). */
 export async function productMeta(db: Db) {
-  const [units, categories] = await Promise.all([
+  const [units, cats] = await Promise.all([
     db
       .selectDistinct({ v: products.unit })
       .from(products)
       .where(isNull(products.deletedAt))
       .orderBy(asc(products.unit)),
-    db
-      .selectDistinct({ v: products.category })
-      .from(products)
-      .where(and(isNull(products.deletedAt), isNotNull(products.category)))
-      .orderBy(asc(products.category)),
+    db.select({ name: categories.name }).from(categories).orderBy(sql`lower(${categories.name})`),
   ]);
   return {
     units: units.map((u) => u.v),
-    categories: categories.map((c) => c.v).filter((v): v is string => !!v),
+    categories: cats.map((c) => c.name),
   };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bestPrice } from "./pricing";
+import { bestPrice, weightPrice } from "./pricing";
 
 describe("bestPrice", () => {
   it("is quantity × price without combos", () => {
@@ -32,5 +32,25 @@ describe("bestPrice", () => {
     const r = bestPrice(1000, [{ quantity: 3, price: 3500 }], 3);
     expect(r.total).toBe(3000);
     expect(r.parts[0].kind).toBe("single");
+  });
+});
+
+describe("weightPrice", () => {
+  it("is price × weight for round amounts", () => {
+    expect(weightPrice(40000, 1200)).toBe(48000);
+    expect(weightPrice(40000, 100)).toBe(4000);
+    expect(weightPrice(40000, 1000)).toBe(40000);
+  });
+
+  it("rounds to the nearest 500", () => {
+    expect(weightPrice(37500, 130)).toBe(5000); // 4.875
+    expect(weightPrice(37500, 110)).toBe(4000); // 4.125
+    expect(weightPrice(37500, 120)).toBe(4500); // 4.500
+  });
+
+  it("never charges less than 500 for a positive weight, and nothing for none", () => {
+    expect(weightPrice(10000, 5)).toBe(500);
+    expect(weightPrice(40000, 0)).toBe(0);
+    expect(weightPrice(40000, Number.NaN)).toBe(0);
   });
 });

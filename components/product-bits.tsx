@@ -37,12 +37,20 @@ function ThumbImg({ imageKey, name }: { imageKey: string; name: string }) {
   );
 }
 
-/** Every price of a product: retail, wholesale, (cost), and each combo deal. */
+/** Every price of a product: retail, (cost), and each combo deal. Weighed products show per kg and per 100 g. */
 export function PriceList({ product: p, showCost = false }: { product: Product; showCost?: boolean }) {
+  if (p.soldByWeight) {
+    return (
+      <dl className="grid w-fit grid-cols-[auto_auto] gap-x-4 gap-y-0.5 text-sm tabular-nums">
+        <Row label="Giá / kg" value={formatVnd(p.retailPrice)} strong />
+        <Row label="Giá / 100 g" value={formatVnd(Math.round(p.retailPrice / 10))} />
+        {showCost && p.costPrice != null && <Row label="Giá vốn / kg" value={formatVnd(p.costPrice)} muted />}
+      </dl>
+    );
+  }
   return (
     <dl className="grid w-fit grid-cols-[auto_auto] gap-x-4 gap-y-0.5 text-sm tabular-nums">
       <Row label="Giá lẻ" value={formatVnd(p.retailPrice)} strong />
-      {p.wholesalePrice != null && <Row label="Giá sỉ" value={formatVnd(p.wholesalePrice)} />}
       {showCost && p.costPrice != null && <Row label="Giá vốn" value={formatVnd(p.costPrice)} muted />}
       {p.combos.map((c) => (
         <Row key={c.quantity} label={`Combo ${c.quantity} ${p.unit}`} value={formatVnd(c.price)} accent />

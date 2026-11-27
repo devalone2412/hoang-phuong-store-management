@@ -11,9 +11,10 @@ export const products = sqliteTable(
     sku: text("sku"),
     unit: text("unit").notNull(),
     category: text("category"),
+    /** Sold by weight: `retailPrice` is per kg and the unit is always kg. */
+    soldByWeight: integer("sold_by_weight", { mode: "boolean" }).notNull().default(false),
     /** All prices are whole VND. */
     retailPrice: integer("retail_price").notNull(),
-    wholesalePrice: integer("wholesale_price"),
     costPrice: integer("cost_price"),
     /** Quantity deals, e.g. 3 packs for 20.000. */
     combos: text("combos", { mode: "json" }).$type<{ quantity: number; price: number }[]>(),
@@ -34,6 +35,22 @@ export const products = sqliteTable(
     index("products_category_idx").on(t.category),
   ],
 );
+
+/** Admin-managed product groups ("Nhóm hàng"). Products reference one by name (`products.category`). */
+export const categories = sqliteTable(
+  "categories",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    /** `categoryKey(name)`: Unicode-lowercased, so "Gạo" and "GẠO" collide (SQLite's lower() is ASCII-only). */
+    nameKey: text("name_key").notNull(),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [uniqueIndex("categories_name_key_uq").on(t.nameKey)],
+);
+
+export type CategoryRow = typeof categories.$inferSelect;
 
 export type ProductRow = typeof products.$inferSelect;
 export type NewProductRow = typeof products.$inferInsert;

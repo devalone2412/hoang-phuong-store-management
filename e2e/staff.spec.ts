@@ -50,6 +50,9 @@ test("staff API: admin routes are forbidden and cost price is hidden", async () 
   const api = await staffApi();
   expect((await api.get("/api/products")).status()).toBe(403);
   expect((await api.get("/api/users")).status()).toBe(403);
+  // Staff may read the group list (Tra giá filters by it) but never change it.
+  expect((await api.get("/api/categories")).ok()).toBe(true);
+  expect((await api.post("/api/categories", { data: { name: "E2E staff" } })).status()).toBe(403);
   const lookup = await api.get("/api/lookup?q=e2e");
   expect(lookup.ok()).toBe(true);
   const body = (await lookup.json()) as { items: { costPrice: number | null }[] };

@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { NativeSelect } from "@/components/native-select";
 import { Button } from "@/components/ui/button";
 import { pageWindow } from "@/lib/pagination";
 import { cn } from "@/lib/utils";
@@ -26,8 +27,7 @@ export function Pagination({ page, pageSize, total, onPage, onPageSize, pageSize
       <div className="flex items-center gap-3">
         <span>{total === 0 ? "0 sản phẩm" : `${from}–${to} / ${total} sản phẩm`}</span>
         {onPageSize && (
-          <select
-            className="h-9 rounded-md border bg-background px-2 text-base text-foreground md:text-sm"
+          <NativeSelect
             value={pageSize}
             onChange={(e) => onPageSize(Number(e.target.value))}
             aria-label="Số sản phẩm mỗi trang"
@@ -37,7 +37,7 @@ export function Pagination({ page, pageSize, total, onPage, onPageSize, pageSize
                 {n} / trang
               </option>
             ))}
-          </select>
+          </NativeSelect>
         )}
       </div>
 

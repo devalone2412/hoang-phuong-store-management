@@ -38,3 +38,13 @@ export function bestPrice(unitPrice: number, combos: Combo[], qty: number): { to
     .sort((a, b) => b.quantity - a.quantity);
   return { total: cost[n], parts };
 }
+
+/** Weighed totals are rounded to the nearest 500 ₫ (cash-friendly), and never below 500 ₫. */
+export const WEIGHT_ROUNDING = 500;
+
+/** Price of `grams` of a product sold at `pricePerKg`. 37.500/kg × 130 g = 4.875 -> 5.000. */
+export function weightPrice(pricePerKg: number, grams: number): number {
+  if (!(grams > 0)) return 0;
+  const exact = (pricePerKg * grams) / 1000;
+  return Math.max(WEIGHT_ROUNDING, Math.round(exact / WEIGHT_ROUNDING) * WEIGHT_ROUNDING);
+}

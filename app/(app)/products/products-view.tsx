@@ -2,7 +2,7 @@
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { lazy, memo, Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Tags } from "lucide-react";
 import { toast } from "sonner";
 import { BarcodeScanButton } from "@/components/barcode-scanner";
 import { EmptyState } from "@/components/empty-state";
@@ -10,6 +10,7 @@ import { EmptyBoxArt, SearchArt } from "@/components/illustrations";
 import { Pagination } from "@/components/pagination";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { NativeSelect } from "@/components/native-select";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -22,6 +23,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 // The form (with zod and react-hook-form deps) is only needed once someone opens it.
 const loadForm = () => import("./product-form").then((m) => ({ default: m.ProductForm }));
 const ProductForm = lazy(loadForm);
+const CategoriesDialog = lazy(() => import("./categories-dialog").then((m) => ({ default: m.CategoriesDialog })));
 
 type ListResult = { items: Product[]; total: number; page: number; pageSize: number };
 type Meta = { units: string[]; categories: string[] };
@@ -40,9 +42,10 @@ export function ProductsView() {
   const [page, setPageRaw] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [editing, setEditing] = useState<Product | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [formMounted, setFormMounted] = useState(false);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
   const isMobile = useIsMobile();
 
   // Fetch the form's code in the background once the list is up, so the first click is instant.
@@ -74,9 +77,19 @@ export function ProductsView() {
     placeholderData: keepPreviousData,
   });
   const meta = useQuery({ queryKey: ["meta"], queryFn: ({ signal }) => api<Meta>("/api/meta", { signal }), staleTime: 5 * 60_000 });
+  // A renamed or deleted group can't stay selected in the filter.
+  const knownCategories = meta.data?.categories;
+  useEffect(() => {
+    if (category && knownCategories && !knownCategories.includes(category)) {
+      setCategory("");
+      setPage(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category, knownCategories]);
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["products"] });
+    qc.invalidateQueries({ queryKey: ["product"] });
     qc.invalidateQueries({ queryKey: ["meta"] });
     qc.invalidateQueries({ queryKey: ["lookup"] });
     qc.invalidateQueries({ queryKey: ["by-code"] });
@@ -124,7 +137,7 @@ export function ProductsView() {
   }, []);
 
   const edit = useCallback((p: Product) => {
-    setEditing(p);
+    setEditingId(p.id);
     setFormMounted(true);
     setFormOpen(true);
   }, []);
@@ -156,8 +169,8 @@ export function ProductsView() {
           <BarcodeScanButton onDetected={setQ} className="shrink-0" />
         </div>
         <div className="flex gap-2">
-          <select
-            className="h-9 min-w-0 flex-1 rounded-md border bg-background px-3 text-base md:w-auto md:flex-none md:text-sm"
+          <NativeSelect
+            className="flex-1 md:w-auto md:flex-none"
             value={category}
             onChange={(e) => {
               setCategory(e.target.value);
@@ -171,12 +184,16 @@ export function ProductsView() {
                 {c}
               </option>
             ))}
-          </select>
+          </NativeSelect>
+          <Button variant="outline" className="shrink-0" aria-label="Quản lý nhóm hàng" onClick={() => setCategoriesOpen(true)}>
+            <Tags />
+            <span className="hidden sm:inline">Nhóm hàng</span>
+          </Button>
           <Button
             className="shrink-0"
             aria-label="Thêm sản phẩm"
             onClick={() => {
-              setEditing(null);
+              setEditingId(null);
               setFormMounted(true);
               setFormOpen(true);
             }}
@@ -262,12 +279,18 @@ export function ProductsView() {
         }}
       />
 
+      {categoriesOpen && (
+        <Suspense fallback={null}>
+          <CategoriesDialog open={categoriesOpen} onOpenChange={setCategoriesOpen} />
+        </Suspense>
+      )}
+
       {formMounted && (
         <Suspense fallback={null}>
           <ProductForm
             open={formOpen}
             onOpenChange={setFormOpen}
-            product={editing}
+            productId={editingId}
             units={meta.data?.units ?? []}
             categories={meta.data?.categories ?? []}
           />

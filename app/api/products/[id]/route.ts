@@ -1,8 +1,7 @@
 import { env, waitUntil } from "cloudflare:workers";
 import { getDb } from "@/db/client";
-import { productInputSchema } from "@/features/products/schema";
+import { productInputSchema, thumbKey } from "@/features/products/schema";
 import { handler, jsonError, readJson } from "@/server/http";
-import { thumbKey } from "@/features/products/schema";
 import { getProduct, softDeleteProduct, updateProduct } from "@/server/products.repo";
 
 type Ctx = { params: Promise<{ id: string }> };

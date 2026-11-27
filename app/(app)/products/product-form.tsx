@@ -1,46 +1,144 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImagePlus, Plus, Trash2 } from "lucide-react";
 import { Camera } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { NativeSelect } from "@/components/native-select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { BarcodeScanButton } from "@/components/barcode-scanner";
 import { MoneyInput } from "@/components/money-input";
 import { ProductThumb } from "@/components/product-bits";
-import { MAX_BARCODES, MAX_COMBOS, comboWarnings, priceWarnings, productInputSchema, type Product } from "@/features/products/schema";
+import type { Category } from "@/features/categories/schema";
+import { MAX_BARCODES, MAX_COMBOS, WEIGHT_UNIT, comboWarnings, priceWarnings, productInputSchema, type Product } from "@/features/products/schema";
 import { ApiError, api } from "@/lib/api";
-import { formatDateTime, formatVndNumber, parseVnd } from "@/lib/money";
+import { formatDateTime, formatVnd, formatVndNumber, parseVnd } from "@/lib/money";
 import { uploadImage } from "@/lib/upload-image";
+
+const NEW_CATEGORY = "__new__";
 
 type ComboRow = { quantity: string; price: string };
 
-type Props = { open: boolean; onOpenChange: (v: boolean) => void; product: Product | null; units: string[]; categories: string[] };
+type Props = { open: boolean; onOpenChange: (v: boolean) => void; productId: string | null; units: string[]; categories: string[] };
+type BodyProps = Omit<Props, "productId" | "open"> & { product: Product | null };
 
-export function ProductForm(props: Props) {
-  // Remount per product so the fields reset without effects.
+export function ProductForm({ open, onOpenChange, productId, units, categories }: Props) {
+  // Editing always loads the full record from the server: the list row can be stale, and the form
+  // fields are uncontrolled, so it must only mount once with the data it should show.
+  const detail = useQuery({
+    queryKey: ["product", productId],
+    queryFn: ({ signal }) => api<Product>(`/api/products/${productId}`, { signal }),
+    enabled: open && !!productId,
+    staleTime: 0,
+    gcTime: 0,
+    retry: (count, e) => !(e instanceof ApiError && e.status === 404) && count < 2,
+  });
+
   return (
-    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       {/* Header and footer stay put; only the fields scroll, so Lưu is always reachable on any screen height. */}
       <DialogContent className="flex max-h-[calc(100svh-1.5rem)] flex-col gap-0 overflow-hidden p-0 sm:max-h-[min(52rem,calc(100svh-3rem))] sm:max-w-xl">
-        <FormBody key={props.product?.id ?? "new"} {...props} />
+        {!productId ? (
+          <FormBody key="new" product={null} onOpenChange={onOpenChange} units={units} categories={categories} />
+        ) : detail.data ? (
+          <FormBody
+            key={`${detail.data.id}:${detail.data.updatedAt}`}
+            product={detail.data}
+            onOpenChange={onOpenChange}
+            units={units}
+            categories={categories}
+          />
+        ) : (
+          <LoadState error={detail.error} onRetry={() => void detail.refetch()} onClose={() => onOpenChange(false)} />
+        )}
       </DialogContent>
     </Dialog>
   );
 }
 
-function FormBody({ onOpenChange, product, units, categories }: Props) {
+function LoadState({ error, onRetry, onClose }: { error: Error | null; onRetry: () => void; onClose: () => void }) {
+  const notFound = error instanceof ApiError && error.status === 404;
+  return (
+    <>
+      <DialogHeader className="shrink-0 border-b px-5 py-4 pr-14 text-left sm:px-6">
+        <DialogTitle>Sửa sản phẩm</DialogTitle>
+        <DialogDescription className="sr-only">Đang tải thông tin sản phẩm</DialogDescription>
+      </DialogHeader>
+      <div className="grid content-start gap-4 px-5 py-4 sm:px-6" aria-busy={!error}>
+        {error ? (
+          <p className="text-sm text-destructive">{notFound ? "Không tìm thấy sản phẩm (có thể đã bị xóa)." : error.message}</p>
+        ) : (
+          <>
+            <Skeleton className="h-20" />
+            <Skeleton className="h-9" />
+            <Skeleton className="h-9" />
+            <Skeleton className="h-9" />
+          </>
+        )}
+      </div>
+      <DialogFooter className="shrink-0 gap-2 border-t px-5 py-3 sm:px-6">
+        <Button type="button" variant="outline" onClick={onClose}>
+          {notFound ? "Đóng" : "Hủy"}
+        </Button>
+        {error && !notFound && (
+          <Button type="button" onClick={onRetry}>
+            Thử lại
+          </Button>
+        )}
+      </DialogFooter>
+    </>
+  );
+}
+
+function FormBody({ onOpenChange, product, units, categories }: BodyProps) {
   const qc = useQueryClient();
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [prices, setPrices] = useState({
     retailPrice: formatVndNumber(product?.retailPrice),
-    wholesalePrice: formatVndNumber(product?.wholesalePrice),
     costPrice: formatVndNumber(product?.costPrice),
   });
+
+  const [soldByWeight, setSoldByWeight] = useState(product?.soldByWeight ?? false);
+  const [unit, setUnit] = useState(product?.unit ?? "");
+
+  // The dropdown shows the admin's list, plus any group created from this form before the list reloads.
+  const [category, setCategory] = useState(product?.category ?? "");
+  const [localCategories, setLocalCategories] = useState<string[]>([]);
+  const [newCategory, setNewCategory] = useState<string | null>(null); // null = not adding
+  const [addingCategory, setAddingCategory] = useState(false);
+  const categoryOptions = [...new Set([...categories, ...localCategories])].sort((a, b) => a.localeCompare(b, "vi"));
+  const categoryChoices = category && !categoryOptions.includes(category) ? [category, ...categoryOptions] : categoryOptions;
+
+  async function addCategory() {
+    const name = (newCategory ?? "").trim();
+    if (!name) return;
+    const existing = categoryChoices.find((c) => c.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      setCategory(existing);
+      setNewCategory(null);
+      return;
+    }
+    setAddingCategory(true);
+    try {
+      const created = await api<Category>("/api/categories", { method: "POST", json: { name } });
+      setLocalCategories((l) => [...l, created.name]);
+      setCategory(created.name);
+      setNewCategory(null);
+      setErrors((e) => ({ ...e, category: "" }));
+      qc.invalidateQueries({ queryKey: ["meta"] });
+      qc.invalidateQueries({ queryKey: ["categories"] });
+    } catch (e) {
+      toast.error(e instanceof ApiError ? (e.fields?.name ?? e.message) : "Không thêm được nhóm hàng");
+    } finally {
+      setAddingCategory(false);
+    }
+  }
 
   const [imageKey, setImageKey] = useState<string | null>(product?.imageKey ?? null);
   const [uploading, setUploading] = useState(false);
@@ -78,6 +176,7 @@ function FormBody({ onOpenChange, product, units, categories }: Props) {
         : api<Product>("/api/products", { method: "POST", json: data }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["product"] });
       qc.invalidateQueries({ queryKey: ["meta"] });
       qc.invalidateQueries({ queryKey: ["lookup"] });
       qc.invalidateQueries({ queryKey: ["by-code"] });
@@ -92,32 +191,35 @@ function FormBody({ onOpenChange, product, units, categories }: Props) {
 
   const parsedPrices = {
     retailPrice: parseVnd(prices.retailPrice),
-    wholesalePrice: parseVnd(prices.wholesalePrice),
     costPrice: parseVnd(prices.costPrice),
   };
   const parsedCombos = combos.map((c) => ({ quantity: Number(c.quantity), price: parseVnd(c.price) }));
   const warnings = [
     ...priceWarnings(parsedPrices),
-    ...comboWarnings(parsedPrices.retailPrice, parsedCombos as { quantity: number; price: number }[]),
+    ...(soldByWeight ? [] : comboWarnings(parsedPrices.retailPrice, parsedCombos as { quantity: number; price: number }[])),
   ];
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (newCategory?.trim()) {
+      setErrors({ category: "Bấm “Thêm” để tạo nhóm hàng mới trước khi lưu" });
+      return;
+    }
     const f = new FormData(e.currentTarget);
     const text = (k: string) => String(f.get(k) ?? "");
     const price = (v: number | null) => (v !== null && Number.isNaN(v) ? ("x" as unknown as number) : v);
     const result = productInputSchema.safeParse({
       name: text("name"),
-      unit: text("unit"),
-      category: text("category"),
+      unit: soldByWeight ? WEIGHT_UNIT : unit,
+      soldByWeight,
+      category,
       sku: text("sku"),
       barcodes: barcodes.map((b) => b.trim()).filter(Boolean),
       note: text("note"),
       retailPrice: price(parsedPrices.retailPrice),
-      wholesalePrice: price(parsedPrices.wholesalePrice),
       costPrice: price(parsedPrices.costPrice),
       imageKey,
-      combos: combos
+      combos: (soldByWeight ? [] : combos)
         .filter((c) => c.quantity.trim() || c.price.trim())
         .map((c) => ({
           quantity: c.quantity.trim() ? Number(c.quantity) : ("x" as unknown as number),
@@ -135,6 +237,10 @@ function FormBody({ onOpenChange, product, units, categories }: Props) {
   }
 
   const err = (k: string) => (errors[k] ? <p className="text-sm text-destructive">{errors[k]}</p> : null);
+  const perKgHint =
+    soldByWeight && parsedPrices.retailPrice != null && !Number.isNaN(parsedPrices.retailPrice)
+      ? `≈ ${formatVnd(Math.round(parsedPrices.retailPrice / 10))} / 100 g`
+      : null;
   const priceInput = (k: keyof typeof prices, label: string, className?: string) => (
     <div className={`grid gap-1.5 ${className ?? ""}`}>
       <Label htmlFor={k}>{label}</Label>
@@ -196,27 +302,97 @@ function FormBody({ onOpenChange, product, units, categories }: Props) {
         {err("name")}
       </div>
 
+      <label htmlFor="soldByWeight" className="-my-1 flex min-h-11 cursor-pointer items-start gap-3 rounded-md py-2">
+        <Checkbox
+          id="soldByWeight"
+          className="mt-0.5"
+          checked={soldByWeight}
+          onCheckedChange={(v) => {
+            const on = v === true;
+            setSoldByWeight(on);
+            if (on) setCombos([]);
+          }}
+        />
+        <span className="grid gap-0.5 text-sm">
+          <span className="font-medium">Bán theo cân (kg / gram)</span>
+          <span className="text-xs text-muted-foreground">Nhập giá theo 1 kg. Khi tính tiền, nhập số cân khách mua (vd 1,2kg hoặc 100g).</span>
+        </span>
+      </label>
+
       <div className="grid grid-cols-2 gap-3">
         <div className="grid gap-1.5">
-          <Label htmlFor="unit">Đơn vị tính *</Label>
-          <Input id="unit" name="unit" list="unit-options" defaultValue={product?.unit} placeholder="cái, kg" />
+          <Label htmlFor="unit">Đơn vị tính {soldByWeight ? "" : "*"}</Label>
+          <Input
+            id="unit"
+            name="unit"
+            list="unit-options"
+            value={soldByWeight ? WEIGHT_UNIT : unit}
+            onChange={(e) => setUnit(e.target.value)}
+            disabled={soldByWeight}
+            placeholder="cái, hộp"
+          />
           <datalist id="unit-options">{units.map((u) => <option key={u} value={u} />)}</datalist>
           {err("unit")}
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="category">Nhóm hàng</Label>
-          <Input id="category" name="category" list="category-options" defaultValue={product?.category ?? ""} />
-          <datalist id="category-options">{categories.map((c) => <option key={c} value={c} />)}</datalist>
+          {/* A native select: reliable in installed PWAs on iOS and Android, unlike <datalist>. */}
+          <NativeSelect
+            id="category"
+            value={newCategory !== null ? NEW_CATEGORY : category}
+            onChange={(e) => {
+              if (e.target.value === NEW_CATEGORY) setNewCategory("");
+              else {
+                setNewCategory(null);
+                setCategory(e.target.value);
+              }
+            }}
+          >
+            <option value="">— Không có nhóm —</option>
+            {categoryChoices.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+            <option value={NEW_CATEGORY}>+ Thêm nhóm mới…</option>
+          </NativeSelect>
           {err("category")}
         </div>
       </div>
+      {newCategory !== null && (
+        <div className="flex gap-2">
+          <Input
+            autoFocus
+            className="min-w-0 flex-1 text-base md:text-sm"
+            placeholder="Tên nhóm hàng mới"
+            aria-label="Tên nhóm hàng mới"
+            maxLength={60}
+            value={newCategory}
+            onChange={(e) => setNewCategory(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void addCategory();
+              }
+            }}
+          />
+          <Button type="button" disabled={addingCategory || !newCategory.trim()} onClick={() => void addCategory()}>
+            {addingCategory ? "Đang thêm…" : "Thêm"}
+          </Button>
+          <Button type="button" variant="ghost" onClick={() => setNewCategory(null)}>
+            Hủy
+          </Button>
+        </div>
+      )}
 
-      <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-3">
-        {priceInput("retailPrice", "Giá lẻ *")}
-        {priceInput("wholesalePrice", "Giá sỉ")}
-        {priceInput("costPrice", "Giá vốn", "col-span-2 sm:col-span-1")}
+      <div className="grid grid-cols-2 gap-x-3 gap-y-3">
+        {priceInput("retailPrice", soldByWeight ? "Giá lẻ / kg *" : "Giá lẻ *")}
+        {priceInput("costPrice", soldByWeight ? "Giá vốn / kg" : "Giá vốn")}
       </div>
-      <p className="text-xs text-muted-foreground">Gõ 15 rồi bấm k = 15.000 · gõ 1,2 rồi bấm tr = 1.200.000</p>
+      <p className="text-xs text-muted-foreground">
+        Gõ 15 rồi bấm k = 15.000 · gõ 1,2 rồi bấm tr = 1.200.000{perKgHint && <span className="font-medium text-foreground"> · {perKgHint}</span>}
+      </p>
+      {!soldByWeight && (
       <div className="grid gap-2">
         <div className="flex items-center justify-between">
           <Label>Giá combo</Label>
@@ -252,6 +428,7 @@ function FormBody({ onOpenChange, product, units, categories }: Props) {
         ))}
         {err("combos")}
       </div>
+      )}
 
       {warnings.map((w) => (
         <p key={w} className="text-sm text-amber-600">{w}</p>
