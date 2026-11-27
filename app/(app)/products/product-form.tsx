@@ -256,7 +256,7 @@ function FormBody({ onOpenChange, product, units, categories }: BodyProps) {
         {product && <DialogDescription>Cập nhật lần cuối: {formatDateTime(product.updatedAt)}</DialogDescription>}
       </DialogHeader>
 
-      <div className="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto [&>*]:shrink-0 overscroll-contain px-5 py-4 sm:px-6">
       <div className="flex items-center gap-3">
         <ProductThumb product={{ name: product?.name ?? "Ảnh sản phẩm", imageKey }} className="size-20" />
         <div className="flex flex-wrap gap-2">
@@ -302,7 +302,7 @@ function FormBody({ onOpenChange, product, units, categories }: BodyProps) {
         {err("name")}
       </div>
 
-      <label htmlFor="soldByWeight" className="-my-1 flex min-h-11 cursor-pointer items-start gap-3 rounded-md py-2">
+      <label htmlFor="soldByWeight" className="flex h-auto min-h-11 shrink-0 cursor-pointer items-start gap-3 rounded-md pb-3 pt-1">
         <Checkbox
           id="soldByWeight"
           className="mt-0.5"
@@ -313,13 +313,13 @@ function FormBody({ onOpenChange, product, units, categories }: BodyProps) {
             if (on) setCombos([]);
           }}
         />
-        <span className="grid gap-0.5 text-sm">
+        <span className="grid min-w-0 gap-0.5 text-sm">
           <span className="font-medium">Bán theo cân (kg / gram)</span>
-          <span className="text-xs text-muted-foreground">Nhập giá theo 1 kg. Khi tính tiền, nhập số cân khách mua (vd 1,2kg hoặc 100g).</span>
+          <span className="text-xs leading-relaxed text-muted-foreground">Nhập giá theo 1 kg. Khi tính tiền, nhập số cân khách mua (vd 1,2kg hoặc 100g).</span>
         </span>
       </label>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 items-start gap-3 [&>*]:min-w-0">
         <div className="grid gap-1.5">
           <Label htmlFor="unit">Đơn vị tính {soldByWeight ? "" : "*"}</Label>
           <Input
@@ -385,7 +385,7 @@ function FormBody({ onOpenChange, product, units, categories }: BodyProps) {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-x-3 gap-y-3">
+      <div className="grid grid-cols-2 items-start gap-x-3 gap-y-3 [&>*]:min-w-0">
         {priceInput("retailPrice", soldByWeight ? "Giá lẻ / kg *" : "Giá lẻ *")}
         {priceInput("costPrice", soldByWeight ? "Giá vốn / kg" : "Giá vốn")}
       </div>
