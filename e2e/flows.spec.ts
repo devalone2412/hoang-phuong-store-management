@@ -207,7 +207,7 @@ test("weighed product: price per kg in the form, then 1,2kg and a 100g chip in T
   await expect(dialog.locator("#unit")).toBeDisabled();
   await expect(dialog.getByRole("button", { name: "Thêm combo" })).toHaveCount(0);
   await dialog.locator("#retailPrice").fill("40k");
-  await expect(dialog.getByText("100 g 4.000 ₫ · 200 g 8.000 ₫ · 500 g 20.000 ₫")).toBeVisible();
+  await expect(dialog.getByText("300 g 12.000 ₫ · 500 g 20.000 ₫ · 1 kg 40.000 ₫")).toBeVisible();
   await dialog.getByRole("button", { name: "Lưu" }).click();
   await expect(page.getByText("Đã thêm sản phẩm")).toBeVisible();
 
@@ -234,20 +234,15 @@ test("weighed product: price per kg in the form, then 1,2kg and a 100g chip in T
   await expect(weight).toHaveValue("230g");
 });
 
-test("weighed product: under 1 kg the price rows apply, from 1 kg the kg price", async ({ page }) => {
-  const name = `${E2E_PREFIX} Cân bậc ${Date.now()}`;
+test("weighed product: under 1 kg the 100 g price applies, from 1 kg the kg price", async ({ page }) => {
+  const name = `${E2E_PREFIX} Cân 100g ${Date.now()}`;
   await page.goto("/products");
   const dialog = await openProductForm(page);
   await dialog.locator("#name").fill(name);
   await dialog.getByLabel("Bán theo cân (kg / gram)").click();
   await dialog.locator("#retailPrice").fill("120k");
-  await dialog.getByRole("button", { name: "Thêm mức" }).click();
-  await dialog.getByLabel("Mức cân 1").fill("100g");
-  await dialog.getByLabel("Giá mức cân 1").fill("15k");
-  await dialog.getByRole("button", { name: "Thêm mức" }).click();
-  await dialog.getByLabel("Mức cân 2").fill("200g");
-  await dialog.getByLabel("Giá mức cân 2").fill("28k");
-  await expect(dialog.getByText("100 g 15.000 ₫ · 200 g 28.000 ₫ · 500 g 70.000 ₫")).toBeVisible();
+  await dialog.locator("#price100g").fill("15k");
+  await expect(dialog.getByText("300 g 45.000 ₫ · 500 g 75.000 ₫ · 1 kg 120.000 ₫")).toBeVisible();
   await dialog.getByRole("button", { name: "Lưu" }).click();
   await expect(page.getByText("Đã thêm sản phẩm")).toBeVisible();
 
@@ -260,15 +255,21 @@ test("weighed product: under 1 kg the price rows apply, from 1 kg the kg price",
   await page.getByRole("button", { name: new RegExp(name) }).click();
 
   const weight = page.getByLabel(`Số cân ${name}`);
-  await weight.fill("100g");
-  await expect(page.getByTestId("checkout-total")).toHaveText("15.000 ₫");
+  await weight.fill("300g");
+  await expect(page.getByTestId("checkout-total")).toHaveText("45.000 ₫");
+  await expect(page.getByText("15.000 ₫ / 100 g · dưới 1 kg")).toBeVisible();
+  await weight.fill("130g");
+  await expect(page.getByTestId("checkout-total")).toHaveText("19.500 ₫");
   await weight.fill("1kg");
   await expect(page.getByTestId("checkout-total")).toHaveText("120.000 ₫");
-  // Under 1 kg the 200 g rate applies (140/g), not the 1 kg rate.
-  await weight.fill("300g");
-  await expect(page.getByTestId("checkout-total")).toHaveText("42.000 ₫");
-  await weight.fill("999g");
-  await expect(page.getByTestId("checkout-total")).toHaveText("140.000 ₫");
+
+  // 900 g costs more than a whole kg: hint, and one tap switches to 1 kg.
+  await weight.fill("900g");
+  await expect(page.getByTestId("checkout-total")).toHaveText("135.000 ₫");
+  await expect(page.getByText("Lấy đủ 1 kg chỉ 120.000 ₫")).toBeVisible();
+  await page.getByRole("button", { name: "Lấy 1 kg" }).click();
+  await expect(page.getByTestId("checkout-total")).toHaveText("120.000 ₫");
+  await expect(page.getByText("Lấy đủ 1 kg")).toHaveCount(0);
 });
 
 test("Tra giá: weighed product has a calculator, and the group filter lists a whole group", async ({ page }) => {

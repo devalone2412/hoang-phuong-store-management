@@ -10,7 +10,7 @@ import { BarcodeScanButton } from "@/components/barcode-scanner";
 import { ProductThumb } from "@/components/product-bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { bestPrice, weightPrice } from "@/features/products/pricing";
+import { bestPrice, under1kgPrice, weightPrice, weightRate } from "@/features/products/pricing";
 import type { Product } from "@/features/products/schema";
 import { ApiError, api } from "@/lib/api";
 import { formatVnd } from "@/lib/money";
@@ -144,7 +144,7 @@ export function CheckoutView() {
   const priced = lines.map((l) => ({
     ...l,
     weighed: l.product.soldByWeight === true,
-    price: l.product.soldByWeight ? { total: l.grams ? weightPrice(l.product.retailPrice, l.grams, l.product.weightPrices ?? []) : 0, parts: [] } : bestPrice(l.product.retailPrice, l.product.combos, l.qty),
+    price: l.product.soldByWeight ? { total: l.grams ? weightPrice(l.product, l.grams) : 0, parts: [] } : bestPrice(l.product.retailPrice, l.product.combos, l.qty),
   }));
   const total = priced.reduce((sum, l) => sum + l.price.total, 0) + extras.reduce((sum, x) => sum + x.amount * x.qty, 0);
   const units = priced.reduce((sum, l) => sum + (l.weighed ? 0 : l.qty), 0) + extras.reduce((sum, x) => sum + x.qty, 0);
@@ -197,9 +197,12 @@ export function CheckoutView() {
                   <span className="block font-medium [overflow-wrap:anywhere]">{p.name}</span>
                   <span className="block text-xs text-muted-foreground [overflow-wrap:anywhere]">{[p.sku, p.unit].filter(Boolean).join(" · ")}</span>
                 </span>
-                <span className="shrink-0 text-sm font-semibold tabular-nums">
+                <span className="shrink-0 text-right text-sm font-semibold tabular-nums">
                   {formatVnd(p.retailPrice)}
                   {p.soldByWeight && <span className="font-normal text-muted-foreground"> / kg</span>}
+                  {p.soldByWeight && (
+                    <span className="block text-xs font-normal text-muted-foreground">{formatVnd(under1kgPrice(p))} / 100 g</span>
+                  )}
                 </span>
               </button>
             </li>
@@ -216,7 +219,11 @@ export function CheckoutView() {
       <ul className="grid gap-2">
         {priced.map(({ product: p, qty, grams, price, weighed }) => {
           if (weighed) {
-            const exact = grams ? (p.retailPrice * grams) / 1000 : 0;
+            const rate = grams ? weightRate(p, grams) : null;
+            const exact = rate?.exact ?? 0;
+            // Under 1 kg at the 100 g price can cost as much as a whole kg: tell the cashier.
+            const fullKg = weightPrice(p, 1000);
+            const kgIsCheaper = grams != null && grams < 1000 && price.total > fullKg;
             return (
               <li key={p.id} className="flex gap-3 rounded-lg border bg-card p-3">
                 <ProductThumb product={p} className="size-16" />
@@ -224,7 +231,15 @@ export function CheckoutView() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="font-medium [overflow-wrap:anywhere]">{p.name}</p>
-                      <p className="text-sm text-muted-foreground tabular-nums">{formatVnd(p.retailPrice)} / kg</p>
+                      <p className="text-sm text-muted-foreground tabular-nums">
+                        {rate
+                          ? rate.per === "100g"
+                            ? `${formatVnd(rate.price)} / 100 g · dưới 1 kg`
+                            : `${formatVnd(rate.price)} / kg`
+                          : p.price100g != null
+                            ? `${formatVnd(p.retailPrice)} / kg · ${formatVnd(p.price100g)} / 100 g`
+                            : `${formatVnd(p.retailPrice)} / kg`}
+                      </p>
                     </div>
                     {grams ? (
                       <p className="shrink-0 font-semibold tabular-nums">{formatVnd(price.total)}</p>
@@ -238,6 +253,14 @@ export function CheckoutView() {
                       {Math.round(exact) !== price.total && ` · làm tròn đến 500 ₫ (${formatVnd(Math.round(exact))})`}
                     </p>
                   ) : null}
+                  {kgIsCheaper && (
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-amber-600">
+                      <span>Lấy đủ 1 kg chỉ {formatVnd(fullKg)}</span>
+                      <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => setGrams(p.id, 1000)}>
+                        Lấy 1 kg
+                      </Button>
+                    </div>
+                  )}
                   <div className="flex items-start gap-1">
                     <WeightInput
                       className="min-w-0 flex-1"

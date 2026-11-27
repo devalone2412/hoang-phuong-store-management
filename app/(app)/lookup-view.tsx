@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { NativeSelect } from "@/components/native-select";
 import { Input } from "@/components/ui/input";
 import { WeightInput } from "@/components/weight-input";
-import { weightPrice } from "@/features/products/pricing";
+import { weightPrice, weightRate } from "@/features/products/pricing";
 import { api } from "@/lib/api";
 import { formatVnd } from "@/lib/money";
 import { PriceList, ProductThumb } from "@/components/product-bits";
@@ -185,7 +185,12 @@ function WeightCalculator({ product: p }: { product: Product }) {
       <WeightInput compact grams={grams} onChange={setGrams} label={`Số cân ${p.name}`} />
       {grams ? (
         <p className="text-right text-lg font-bold tabular-nums" aria-live="polite" data-testid="weight-total">
-          {formatVnd(weightPrice(p.retailPrice, grams, p.weightPrices ?? []))}
+          {formatVnd(weightPrice(p, grams))}
+        </p>
+      ) : null}
+      {grams ? (
+        <p className="text-right text-xs text-muted-foreground">
+          {weightRate(p, grams).per === "100g" ? "Tính theo giá / 100 g (dưới 1 kg)" : "Tính theo giá / kg"}
         </p>
       ) : null}
     </div>

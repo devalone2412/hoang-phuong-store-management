@@ -2,10 +2,10 @@
 
 import { ImageOff } from "lucide-react";
 import { useState } from "react";
+import { under1kgPrice } from "@/features/products/pricing";
 import type { Product } from "@/features/products/schema";
 import { thumbKey } from "@/lib/image-keys";
 import { formatVnd } from "@/lib/money";
-import { formatWeight } from "@/lib/weight";
 import { cn } from "@/lib/utils";
 
 export const imageUrl = (key: string) => `/api/images/${key}`;
@@ -38,16 +38,17 @@ function ThumbImg({ imageKey, name }: { imageKey: string; name: string }) {
   );
 }
 
-/** Every price of a product: retail, (cost), and each combo deal. Weighed products show per kg and per 100 g. */
+/** Every price of a product: retail, (cost), and each combo deal. Weighed products show per kg (1 kg and up) and per 100 g (under 1 kg). */
 export function PriceList({ product: p, showCost = false }: { product: Product; showCost?: boolean }) {
   if (p.soldByWeight) {
     return (
       <dl className="grid w-fit grid-cols-[auto_auto] gap-x-4 gap-y-0.5 text-sm tabular-nums">
-        {(p.weightPrices ?? []).map((w) => (
-          <Row key={w.grams} label={`Giá / ${formatWeight(w.grams)}`} value={formatVnd(w.price)} accent />
-        ))}
-        <Row label="Giá / kg" value={formatVnd(p.retailPrice)} strong />
-        {!p.weightPrices?.length && <Row label="Giá / 100 g" value={formatVnd(Math.round(p.retailPrice / 10))} />}
+        <Row label="Giá / kg (từ 1 kg)" value={formatVnd(p.retailPrice)} strong />
+        {p.price100g != null ? (
+          <Row label="Giá / 100 g (dưới 1 kg)" value={formatVnd(p.price100g)} accent />
+        ) : (
+          <Row label="Giá / 100 g" value={formatVnd(under1kgPrice(p))} muted />
+        )}
         {showCost && p.costPrice != null && <Row label="Giá vốn / kg" value={formatVnd(p.costPrice)} muted />}
       </dl>
     );

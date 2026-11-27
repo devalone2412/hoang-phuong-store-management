@@ -11,7 +11,7 @@ const samples = [
   { name: "Nước mắm Nam Ngư 500ml", unit: "chai", category: "Gia vị", sku: "NM500", retailPrice: 36000, costPrice: 29000 },
   { name: "Dầu ăn Neptune 1L", unit: "chai", category: "Dầu ăn", sku: "DA1L", retailPrice: 55000, costPrice: 47000 },
   { name: "Mì Hảo Hảo tôm chua cay", unit: "gói", category: "Mì gói", sku: "MHH", barcodes: ["8934563138165"], retailPrice: 4500, costPrice: 3600, combos: [{ quantity: 3, price: 12000 }, { quantity: 30, price: 120000 }] },
-  { name: "Đậu đen", unit: "kg", soldByWeight: true, category: "Gạo", sku: "DAUDEN", retailPrice: 40000, costPrice: 32000 },
+  { name: "Đậu đen", unit: "kg", soldByWeight: true, category: "Gạo", sku: "DAUDEN", retailPrice: 40000, price100g: 5000, costPrice: 32000 },
   { name: "Đường cát trắng", unit: "kg", category: "Gia vị", sku: "DUONG", retailPrice: 24000, costPrice: 21000 },
   { name: "Gạo ST25", unit: "kg", category: "Gạo", sku: "ST25", retailPrice: 28000, costPrice: 24000 },
   { name: "Sữa tươi Vinamilk 1L", unit: "hộp", category: "Sữa", sku: "VNM1L", barcodes: ["8934673100016"], retailPrice: 34000, costPrice: 30000 },

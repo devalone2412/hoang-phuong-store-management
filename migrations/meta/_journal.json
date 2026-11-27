@@ -64,6 +64,20 @@
       "when": 1795780322551,
       "tag": "0008_lucky_prowler",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1795781902706,
+      "tag": "0009_modern_blade",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1795781907979,
+      "tag": "0010_minor_caretaker",
+      "breakpoints": true
     }
   ]
 }

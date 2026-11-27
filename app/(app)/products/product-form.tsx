@@ -20,15 +20,12 @@ import { weightPrice } from "@/features/products/pricing";
 import {
   MAX_BARCODES,
   MAX_COMBOS,
-  MAX_WEIGHT_PRICES,
   WEIGHT_UNIT,
   comboWarnings,
   priceWarnings,
   productInputSchema,
-  weightPriceWarnings,
   type Product,
 } from "@/features/products/schema";
-import { formatWeight, parseWeight, weightInputText } from "@/lib/weight";
 import { ApiError, api } from "@/lib/api";
 import { formatDateTime, formatVnd, formatVndNumber, parseVnd } from "@/lib/money";
 import { uploadImage } from "@/lib/upload-image";
@@ -36,7 +33,6 @@ import { uploadImage } from "@/lib/upload-image";
 const NEW_CATEGORY = "__new__";
 
 type ComboRow = { quantity: string; price: string };
-type WeightRow = { weight: string; price: string };
 
 type Props = { open: boolean; onOpenChange: (v: boolean) => void; productId: string | null; units: string[]; categories: string[] };
 type BodyProps = Omit<Props, "productId" | "open"> & { product: Product | null };
@@ -115,6 +111,7 @@ function FormBody({ onOpenChange, product, units, categories }: BodyProps) {
   const [prices, setPrices] = useState({
     retailPrice: formatVndNumber(product?.retailPrice),
     costPrice: formatVndNumber(product?.costPrice),
+    price100g: formatVndNumber(product?.price100g),
   });
 
   const [soldByWeight, setSoldByWeight] = useState(product?.soldByWeight ?? false);
@@ -164,10 +161,6 @@ function FormBody({ onOpenChange, product, units, categories }: BodyProps) {
     (product?.combos ?? []).map((c) => ({ quantity: String(c.quantity), price: formatVndNumber(c.price) })),
   );
 
-  const [weightRows, setWeightRows] = useState<WeightRow[]>(
-    (product?.weightPrices ?? []).map((w) => ({ weight: weightInputText(w.grams), price: formatVndNumber(w.price) })),
-  );
-
   const [barcodes, setBarcodes] = useState<string[]>(product?.barcodes.length ? product.barcodes : [""]);
   const setBarcode = (i: number, v: string) => setBarcodes((list) => list.map((x, j) => (j === i ? v : x)));
 
@@ -209,16 +202,11 @@ function FormBody({ onOpenChange, product, units, categories }: BodyProps) {
   const parsedPrices = {
     retailPrice: parseVnd(prices.retailPrice),
     costPrice: parseVnd(prices.costPrice),
+    price100g: soldByWeight ? parseVnd(prices.price100g) : null,
   };
   const parsedCombos = combos.map((c) => ({ quantity: Number(c.quantity), price: parseVnd(c.price) }));
-  // A bare "200" reads as 200 g, "0,5" as 0,5 kg (parseWeight). NaN marks what couldn't be read.
-  const parsedWeightRows = weightRows.map((w) => ({ grams: parseWeight(w.weight), price: parseVnd(w.price) }));
-  const validWeightRows = parsedWeightRows.filter(
-    (w): w is { grams: number; price: number } => w.grams != null && !Number.isNaN(w.grams) && w.price != null && !Number.isNaN(w.price),
-  );
   const warnings = [
     ...priceWarnings(parsedPrices),
-    ...(soldByWeight ? weightPriceWarnings(parsedPrices.retailPrice, validWeightRows) : []),
     ...(soldByWeight ? [] : comboWarnings(parsedPrices.retailPrice, parsedCombos as { quantity: number; price: number }[])),
   ];
 
@@ -248,15 +236,7 @@ function FormBody({ onOpenChange, product, units, categories }: BodyProps) {
           quantity: c.quantity.trim() ? Number(c.quantity) : ("x" as unknown as number),
           price: c.price.trim() ? (parseVnd(c.price) ?? ("x" as unknown as number)) : ("x" as unknown as number),
         })),
-      weightPrices: (soldByWeight ? weightRows : [])
-        .filter((w) => w.weight.trim() || w.price.trim())
-        .map((w) => {
-          const grams = parseWeight(w.weight);
-          return {
-            grams: grams == null || Number.isNaN(grams) ? ("x" as unknown as number) : grams,
-            price: w.price.trim() ? (parseVnd(w.price) ?? ("x" as unknown as number)) : ("x" as unknown as number),
-          };
-        }),
+      price100g: price(parsedPrices.price100g),
     });
     if (!result.success) {
       const next: Record<string, string> = {};
@@ -269,17 +249,18 @@ function FormBody({ onOpenChange, product, units, categories }: BodyProps) {
   }
 
   const err = (k: string) => (errors[k] ? <p className="text-sm text-destructive">{errors[k]}</p> : null);
-  // What a customer would pay at 100 g · 200 g · 500 g, so the admin sees the effect of the rows.
+  // What a customer would pay at a few weights, so the admin sees the effect of the 100 g price.
+  const retail = parsedPrices.retailPrice;
   const perKgHint =
-    soldByWeight && parsedPrices.retailPrice != null && !Number.isNaN(parsedPrices.retailPrice)
-      ? [100, 200, 500]
-          .map((g) => `${formatWeight(g)} ${formatVnd(weightPrice(parsedPrices.retailPrice as number, g, validWeightRows))}`)
+    soldByWeight && retail != null && !Number.isNaN(retail) && !Number.isNaN(parsedPrices.price100g ?? 0)
+      ? [300, 500, 1000]
+          .map((g) => `${g === 1000 ? "1 kg" : `${g} g`} ${formatVnd(weightPrice({ retailPrice: retail, price100g: parsedPrices.price100g }, g))}`)
           .join(" · ")
       : null;
-  const priceInput = (k: keyof typeof prices, label: string, className?: string) => (
+  const priceInput = (k: keyof typeof prices, label: string, className?: string, placeholder = "15.000") => (
     <div className={`grid gap-1.5 ${className ?? ""}`}>
       <Label htmlFor={k}>{label}</Label>
-      <MoneyInput id={k} placeholder="15.000" value={prices[k]} onChange={(v) => setPrices((p) => ({ ...p, [k]: v }))} />
+      <MoneyInput id={k} placeholder={placeholder} value={prices[k]} onChange={(v) => setPrices((p) => ({ ...p, [k]: v }))} />
       {err(k)}
     </div>
   );
@@ -423,57 +404,22 @@ function FormBody({ onOpenChange, product, units, categories }: BodyProps) {
       <div className="grid grid-cols-2 items-start gap-x-3 gap-y-3 [&>*]:min-w-0">
         {priceInput("retailPrice", soldByWeight ? "Giá lẻ / kg *" : "Giá lẻ *")}
         {priceInput("costPrice", soldByWeight ? "Giá vốn / kg" : "Giá vốn")}
+        {soldByWeight &&
+          priceInput(
+            "price100g",
+            "Giá / 100 g (dưới 1 kg)",
+            "col-span-2",
+            retail != null && !Number.isNaN(retail) ? formatVndNumber(Math.round(retail / 10)) : "15.000",
+          )}
       </div>
+      {soldByWeight && (
+        <p className="text-xs text-muted-foreground">
+          Từ 1 kg tính theo giá / kg, dưới 1 kg tính theo giá / 100 g. Để trống thì lấy giá / kg ÷ 10.
+        </p>
+      )}
       <p className="text-xs text-muted-foreground">
         Gõ 15 rồi bấm k = 15.000 · gõ 1,2 rồi bấm tr = 1.200.000{perKgHint && <span className="font-medium text-foreground"> · {perKgHint}</span>}
       </p>
-      {soldByWeight && (
-        <div className="grid gap-2">
-          <div className="flex items-center justify-between">
-            <Label>Giá theo mức cân</Label>
-            {weightRows.length < MAX_WEIGHT_PRICES && (
-              <Button type="button" variant="ghost" size="sm" onClick={() => setWeightRows((r) => [...r, { weight: "", price: "" }])}>
-                <Plus />
-                Thêm mức
-              </Button>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Giá lẻ / kg là giá của 1 kg. Thêm mức nhỏ hơn nếu bán lẻ đắt hơn, vd 100g giá 15.000. Cân nằm giữa hai mức được tính theo tỉ lệ.
-          </p>
-          {weightRows.map((w, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <Input
-                className="w-24"
-                inputMode="decimal"
-                autoComplete="off"
-                placeholder="100g"
-                aria-label={`Mức cân ${i + 1}`}
-                value={w.weight}
-                onChange={(e) => setWeightRows((list) => list.map((x, j) => (j === i ? { ...x, weight: e.target.value } : x)))}
-                onBlur={() => {
-                  const g = parseWeight(w.weight);
-                  if (g != null && !Number.isNaN(g)) {
-                    setWeightRows((list) => list.map((x, j) => (j === i ? { ...x, weight: weightInputText(g) } : x)));
-                  }
-                }}
-              />
-              <span className="text-sm text-muted-foreground">giá</span>
-              <MoneyInput
-                className="min-w-0 flex-1"
-                placeholder="15.000"
-                aria-label={`Giá mức cân ${i + 1}`}
-                value={w.price}
-                onChange={(v) => setWeightRows((list) => list.map((x, j) => (j === i ? { ...x, price: v } : x)))}
-              />
-              <Button type="button" variant="ghost" size="icon" aria-label="Xóa mức cân" onClick={() => setWeightRows((list) => list.filter((_, j) => j !== i))}>
-                <Trash2 />
-              </Button>
-            </div>
-          ))}
-          {err("weightPrices")}
-        </div>
-      )}
       {!soldByWeight && (
       <div className="grid gap-2">
         <div className="flex items-center justify-between">

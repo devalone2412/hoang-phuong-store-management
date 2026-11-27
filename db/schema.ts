@@ -18,8 +18,8 @@ export const products = sqliteTable(
     costPrice: integer("cost_price"),
     /** Quantity deals, e.g. 3 packs for 20.000. */
     combos: text("combos", { mode: "json" }).$type<{ quantity: number; price: number }[]>(),
-    /** Weighed products only: fixed prices for smaller weights, e.g. 100 g = 15.000. 1 kg is `retailPrice`. */
-    weightPrices: text("weight_prices", { mode: "json" }).$type<{ grams: number; price: number }[]>(),
+    /** Weighed products only: price of 100 g, charged under 1 kg. Null = `retailPrice` ÷ 10. 1 kg and up use `retailPrice`. */
+    price100g: integer("price_100g"),
     /** Object key in the IMAGES R2 bucket, e.g. `<uuid>.webp`. */
     imageKey: text("image_key"),
     note: text("note"),

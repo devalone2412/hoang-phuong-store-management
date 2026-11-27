@@ -1,4 +1,4 @@
-import type { Combo, WeightPrice } from "./schema";
+import type { Combo } from "./schema";
 
 export type PricePart = { quantity: number; price: number; count: number; kind: "combo" | "single" };
 
@@ -42,21 +42,25 @@ export function bestPrice(unitPrice: number, combos: Combo[], qty: number): { to
 /** Weighed totals are rounded to the nearest 500 ₫ (cash-friendly), and never below 500 ₫. */
 export const WEIGHT_ROUNDING = 500;
 
+/** What the price depends on: 1 kg (`retailPrice`) and, optionally, 100 g (`price100g`). */
+export type WeighedPrices = { retailPrice: number; price100g?: number | null };
+
+/** Price of 100 g, charged under 1 kg: the admin's, or the kg price ÷ 10 when none is set. */
+export function under1kgPrice(p: WeighedPrices): number {
+  return p.price100g ?? Math.round(p.retailPrice / 10);
+}
+
 /**
- * Price of `grams` of a product sold at `pricePerKg`. 37.500/kg × 130 g = 4.875 -> 5.000.
- *
- * From 1 kg up, the 1 kg price applies (pro rata). Below 1 kg, the admin's `points` apply instead:
- * the weight is charged at the rate of the heaviest point not above it (below the lightest point,
- * at the lightest point's rate). E.g. 100 g = 15.000 -> 130 g = 19.500. No points = plain price per kg.
+ * The rate `grams` is charged at and the exact (unrounded) amount. From 1 kg up the kg price applies;
+ * under 1 kg the 100 g price does. Without a 100 g price everything is plain per kg.
  */
-export function weightPrice(pricePerKg: number, grams: number, points: WeightPrice[] = []): number {
+export function weightRate(p: WeighedPrices, grams: number): { per: "kg" | "100g"; price: number; exact: number } {
+  if (grams < 1000 && p.price100g != null) return { per: "100g", price: p.price100g, exact: (p.price100g * grams) / 100 };
+  return { per: "kg", price: p.retailPrice, exact: (p.retailPrice * grams) / 1000 };
+}
+
+/** Price of `grams`, rounded to the nearest 500 ₫ (never below 500). 37.500/kg × 130 g = 4.875 -> 5.000. */
+export function weightPrice(p: WeighedPrices, grams: number): number {
   if (!(grams > 0)) return 0;
-  let perGram = pricePerKg / 1000;
-  if (grams < 1000) {
-    const tiers = points.filter((p) => p.grams > 0 && p.grams < 1000).sort((a, b) => a.grams - b.grams);
-    const tier = tiers.filter((p) => p.grams <= grams).pop() ?? tiers[0];
-    if (tier) perGram = tier.price / tier.grams;
-  }
-  const exact = perGram * grams;
-  return Math.max(WEIGHT_ROUNDING, Math.round(exact / WEIGHT_ROUNDING) * WEIGHT_ROUNDING);
+  return Math.max(WEIGHT_ROUNDING, Math.round(weightRate(p, grams).exact / WEIGHT_ROUNDING) * WEIGHT_ROUNDING);
 }
