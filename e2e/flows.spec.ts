@@ -234,7 +234,7 @@ test("weighed product: price per kg in the form, then 1,2kg and a 100g chip in T
   await expect(weight).toHaveValue("230g");
 });
 
-test("weighed product: price rows make 100 g dearer per kg, and Tính tiền interpolates", async ({ page }) => {
+test("weighed product: under 1 kg the price rows apply, from 1 kg the kg price", async ({ page }) => {
   const name = `${E2E_PREFIX} Cân bậc ${Date.now()}`;
   await page.goto("/products");
   const dialog = await openProductForm(page);
@@ -247,7 +247,7 @@ test("weighed product: price rows make 100 g dearer per kg, and Tính tiền int
   await dialog.getByRole("button", { name: "Thêm mức" }).click();
   await dialog.getByLabel("Mức cân 2").fill("200g");
   await dialog.getByLabel("Giá mức cân 2").fill("28k");
-  await expect(dialog.getByText("100 g 15.000 ₫ · 200 g 28.000 ₫ · 500 g 60.000 ₫")).toBeVisible();
+  await expect(dialog.getByText("100 g 15.000 ₫ · 200 g 28.000 ₫ · 500 g 70.000 ₫")).toBeVisible();
   await dialog.getByRole("button", { name: "Lưu" }).click();
   await expect(page.getByText("Đã thêm sản phẩm")).toBeVisible();
 
@@ -264,9 +264,11 @@ test("weighed product: price rows make 100 g dearer per kg, and Tính tiền int
   await expect(page.getByTestId("checkout-total")).toHaveText("15.000 ₫");
   await weight.fill("1kg");
   await expect(page.getByTestId("checkout-total")).toHaveText("120.000 ₫");
-  // Between 200 g (28.000) and 1 kg (120.000): 300 g = 28.000 + 92.000 / 8 = 39.500
+  // Under 1 kg the 200 g rate applies (140/g), not the 1 kg rate.
   await weight.fill("300g");
-  await expect(page.getByTestId("checkout-total")).toHaveText("39.500 ₫");
+  await expect(page.getByTestId("checkout-total")).toHaveText("42.000 ₫");
+  await weight.fill("999g");
+  await expect(page.getByTestId("checkout-total")).toHaveText("140.000 ₫");
 });
 
 test("Tra giá: weighed product has a calculator, and the group filter lists a whole group", async ({ page }) => {

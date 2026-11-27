@@ -69,28 +69,24 @@ describe("weightPrice", () => {
       expect(weightPrice(120000, 100, pts)).toBe(15000);
       expect(weightPrice(120000, 200, pts)).toBe(28000);
       expect(weightPrice(120000, 500, pts)).toBe(65000);
+    });
+
+    it("below 1 kg uses the rate of the heaviest point not above the weight", () => {
+      expect(weightPrice(120000, 300, pts)).toBe(42000); // 200 g rate: 140/g
+      expect(weightPrice(120000, 999, pts)).toBe(130000); // 500 g rate: 130/g
+      expect(weightPrice(120000, 50, pts)).toBe(7500); // below the lightest: 150/g
+    });
+
+    it("with only a 100 g point, everything under 1 kg uses its rate", () => {
+      const one = [{ grams: 100, price: 15000 }];
+      expect(weightPrice(120000, 130, one)).toBe(19500);
+      expect(weightPrice(120000, 900, one)).toBe(135000);
+    });
+
+    it("from 1 kg up only the 1 kg price applies", () => {
       expect(weightPrice(120000, 1000, pts)).toBe(120000);
-    });
-
-    it("interpolates between points and rounds to 500", () => {
-      expect(weightPrice(120000, 300, pts)).toBe(40500); // 28.000 + 37.000/3 = 40.333
-      expect(weightPrice(120000, 750, pts)).toBe(92500); // 65.000 + 55.000/2 = 92.500
-    });
-
-    it("scales below the first point from zero", () => {
-      expect(weightPrice(120000, 50, pts)).toBe(7500);
-    });
-
-    it("keeps the per-kg rate above 1 kg", () => {
       expect(weightPrice(120000, 1500, pts)).toBe(180000);
-    });
-
-    it("extrapolates past a point heavier than 1 kg", () => {
-      expect(weightPrice(120000, 5000, [{ grams: 2000, price: 200000 }])).toBe(500000);
-    });
-
-    it("ignores a 1 kg point (retail price wins)", () => {
-      expect(weightPrice(120000, 1000, [{ grams: 1000, price: 1 }])).toBe(120000);
+      expect(weightPrice(120000, 1000, [{ grams: 100, price: 15000 }])).toBe(120000);
     });
   });
 });

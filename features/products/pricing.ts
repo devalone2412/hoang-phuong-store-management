@@ -45,29 +45,18 @@ export const WEIGHT_ROUNDING = 500;
 /**
  * Price of `grams` of a product sold at `pricePerKg`. 37.500/kg × 130 g = 4.875 -> 5.000.
  *
- * `points` are the admin's fixed prices (100 g = 15.000, …). Between two neighbouring points, and
- * between (0 g, 0 ₫), the points and (1 kg, pricePerKg), the price follows a straight line. Past the
- * heaviest point it continues at that point's per-kg rate. No points = plain price per kg.
+ * From 1 kg up, the 1 kg price applies (pro rata). Below 1 kg, the admin's `points` apply instead:
+ * the weight is charged at the rate of the heaviest point not above it (below the lightest point,
+ * at the lightest point's rate). E.g. 100 g = 15.000 -> 130 g = 19.500. No points = plain price per kg.
  */
 export function weightPrice(pricePerKg: number, grams: number, points: WeightPrice[] = []): number {
   if (!(grams > 0)) return 0;
-  const curve = [
-    { grams: 0, price: 0 },
-    ...points.filter((p) => p.grams !== 1000),
-    { grams: 1000, price: pricePerKg },
-  ].sort((a, b) => a.grams - b.grams);
-
-  let i = curve.findIndex((p) => p.grams >= grams);
-  let exact: number;
-  if (i === -1) {
-    // Beyond the heaviest point: same per-kg rate as that point.
-    const last = curve[curve.length - 1];
-    exact = (last.price * grams) / last.grams;
-  } else {
-    if (i === 0) i = 1;
-    const a = curve[i - 1];
-    const b = curve[i];
-    exact = a.price + ((b.price - a.price) * (grams - a.grams)) / (b.grams - a.grams);
+  let perGram = pricePerKg / 1000;
+  if (grams < 1000) {
+    const tiers = points.filter((p) => p.grams > 0 && p.grams < 1000).sort((a, b) => a.grams - b.grams);
+    const tier = tiers.filter((p) => p.grams <= grams).pop() ?? tiers[0];
+    if (tier) perGram = tier.price / tier.grams;
   }
+  const exact = perGram * grams;
   return Math.max(WEIGHT_ROUNDING, Math.round(exact / WEIGHT_ROUNDING) * WEIGHT_ROUNDING);
 }

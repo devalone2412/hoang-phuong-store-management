@@ -126,6 +126,7 @@ describe("combos and image", () => {
         ];
         expect(productInputSchema.safeParse({ ...w, weightPrices: dup }).success).toBe(false);
         expect(productInputSchema.safeParse({ ...w, weightPrices: [{ grams: 1000, price: 120000 }] }).success).toBe(false);
+        expect(productInputSchema.safeParse({ ...w, weightPrices: [{ grams: 2000, price: 200000 }] }).success).toBe(false);
       });
 
       it("allows at most 5 rows", () => {

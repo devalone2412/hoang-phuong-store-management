@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MAX_GRAMS, formatWeight } from "@/lib/weight";
+import { formatWeight } from "@/lib/weight";
 
 const price = z
   .number({ error: "Nhập số tiền hợp lệ" })
@@ -34,7 +34,7 @@ const weightPriceSchema = z.object({
     .number({ error: "Nhập số cân hợp lệ" })
     .int("Số cân phải là số nguyên (gram)")
     .min(1, "Số cân phải lớn hơn 0")
-    .max(MAX_GRAMS, "Số cân quá lớn"),
+    .max(999, "Mức cân phải dưới 1 kg (1 kg là Giá lẻ / kg)"),
   price,
 });
 export type WeightPrice = z.infer<typeof weightPriceSchema>;
@@ -95,9 +95,6 @@ export const productInputSchema = productFields
     }
     if (!p.soldByWeight && p.weightPrices.length > 0) {
       ctx.addIssue({ code: "custom", path: ["weightPrices"], message: "Chỉ dùng cho hàng bán theo cân" });
-    }
-    if (p.weightPrices.some((w) => w.grams === 1000)) {
-      ctx.addIssue({ code: "custom", path: ["weightPrices"], message: "1 kg đã là “Giá lẻ / kg”, không cần thêm mức 1 kg" });
     }
   })
   .transform((p) => (p.soldByWeight ? { ...p, unit: WEIGHT_UNIT } : p));
