@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { E2E_PREFIX, credentials } from "./api";
-import { expectLayoutOk, openProductForm, pagerSummary, productRows, searchBox, searchFor } from "./helpers";
+import { expectDialogFits, expectLayoutOk, openProductForm, pagerSummary, productRows, searchBox, searchFor } from "./helpers";
 
 // These run on every device project in playwright.config.ts: phones, tablets (both orientations), laptop, desktop.
 
@@ -135,18 +135,8 @@ test.describe("products page", () => {
     for (let i = 0; i < 3; i++) await dialog.getByRole("button", { name: "Thêm combo" }).click();
     await expectLayoutOk(page, testInfo, "product form");
 
-    const vp = page.viewportSize()!;
-    const box = (await dialog.boundingBox())!;
-    expect(box.x).toBeGreaterThanOrEqual(-1);
-    expect(box.y).toBeGreaterThanOrEqual(-1);
-    expect(box.x + box.width).toBeLessThanOrEqual(vp.width + 1);
-    expect(box.y + box.height).toBeLessThanOrEqual(vp.height + 1);
-
     // On short (landscape) screens the form scrolls inside the dialog; the buttons must stay reachable.
-    const save = dialog.getByRole("button", { name: "Lưu" });
-    await save.scrollIntoViewIfNeeded();
-    const sb = (await save.boundingBox())!;
-    expect(sb.y + sb.height).toBeLessThanOrEqual(vp.height + 1);
+    await expectDialogFits(page, dialog, "product form", dialog.getByRole("button", { name: "Lưu" }));
 
     await dialog.getByRole("button", { name: "Quét mã vạch bằng camera" }).scrollIntoViewIfNeeded();
     await dialog.getByRole("button", { name: "Quét mã vạch bằng camera" }).click();

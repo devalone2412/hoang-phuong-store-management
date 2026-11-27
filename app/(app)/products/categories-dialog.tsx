@@ -131,10 +131,10 @@ export function CategoriesDialog({ open, onOpenChange }: Props) {
                         value={editing.name}
                         onChange={(e) => setEditing({ id: c.id, name: e.target.value })}
                       />
-                      <Button type="submit" size="icon" variant="ghost" aria-label="Lưu tên" disabled={rename.isPending}>
+                      <Button type="submit" size="icon" variant="ghost" className="pointer-coarse:size-11" aria-label="Lưu tên" disabled={rename.isPending}>
                         <Check />
                       </Button>
-                      <Button type="button" size="icon" variant="ghost" aria-label="Hủy đổi tên" onClick={() => setEditing(null)}>
+                      <Button type="button" size="icon" variant="ghost" className="pointer-coarse:size-11" aria-label="Hủy đổi tên" onClick={() => setEditing(null)}>
                         <X />
                       </Button>
                     </form>
@@ -144,10 +144,10 @@ export function CategoriesDialog({ open, onOpenChange }: Props) {
                         {c.name}
                         <span className="ml-2 text-xs text-muted-foreground">{c.productCount} sản phẩm</span>
                       </span>
-                      <Button type="button" size="icon" variant="ghost" aria-label={`Đổi tên nhóm ${c.name}`} onClick={() => setEditing({ id: c.id, name: c.name })}>
+                      <Button type="button" size="icon" variant="ghost" className="pointer-coarse:size-11" aria-label={`Đổi tên nhóm ${c.name}`} onClick={() => setEditing({ id: c.id, name: c.name })}>
                         <Pencil />
                       </Button>
-                      <Button type="button" size="icon" variant="ghost" className="text-destructive" aria-label={`Xóa nhóm ${c.name}`} onClick={() => onDelete(c)}>
+                      <Button type="button" size="icon" variant="ghost" className="text-destructive pointer-coarse:size-11" aria-label={`Xóa nhóm ${c.name}`} onClick={() => onDelete(c)}>
                         <Trash2 />
                       </Button>
                     </>
@@ -158,7 +158,7 @@ export function CategoriesDialog({ open, onOpenChange }: Props) {
           )}
         </div>
 
-        <DialogFooter className="shrink-0 border-t px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <DialogFooter className="shrink-0 border-t px-5 py-3">
           <Button type="button" variant="outline" className="h-11 sm:h-9" onClick={() => onOpenChange(false)}>
             Đóng
           </Button>

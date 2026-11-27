@@ -89,7 +89,8 @@ export function BarcodeScanButton({ onDetected, className }: { onDetected: (code
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Quét mã vạch</DialogTitle>
-            <DialogDescription>Đưa mã vạch vào giữa khung hình, cách khoảng 15–20 cm nếu hình bị mờ.</DialogDescription>
+            {/* Short screens (landscape phones) need the room for the camera preview. */}
+            <DialogDescription className="[@media(max-height:480px)]:hidden">Đưa mã vạch vào giữa khung hình, cách khoảng 15–20 cm nếu hình bị mờ.</DialogDescription>
           </DialogHeader>
           {open && (
             <Scanner
@@ -199,8 +200,9 @@ function Scanner({ onDetected }: { onDetected: (code: string) => void }) {
   if (error) return <p role="alert" className="py-6 text-center text-sm text-destructive">{error}</p>;
   return (
     <div className="relative overflow-hidden rounded-lg bg-black">
-      <video ref={videoRef} playsInline muted className="aspect-[4/3] w-full object-cover" />
-      <div className="pointer-events-none absolute inset-x-8 top-1/2 h-24 -translate-y-1/2 rounded-md border-2 border-white/80" />
+      {/* 4:3 on tall screens; on short ones the height is capped and object-cover crops the sides. */}
+      <video ref={videoRef} playsInline muted className="aspect-[4/3] max-h-[calc(100svh-9rem)] w-full object-cover" />
+      <div className="pointer-events-none absolute inset-x-8 top-1/2 h-1/3 max-h-24 min-h-12 -translate-y-1/2 rounded-md border-2 border-white/80" />
     </div>
   );
 }

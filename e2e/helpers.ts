@@ -1,4 +1,4 @@
-import { expect, type Page, type TestInfo } from "@playwright/test";
+import { expect, type Locator, type Page, type TestInfo } from "@playwright/test";
 
 /** Below Tailwind's `md` breakpoint the products page renders cards instead of a table. */
 export const isPhoneWidth = (page: Page) => (page.viewportSize()?.width ?? 1024) < 768;
@@ -93,4 +93,35 @@ export async function expectLayoutOk(page: Page, testInfo: TestInfo, where: stri
   expect(a.hOverflow, `${where}: page scrolls sideways by ${a.hOverflow}px`).toBeLessThanOrEqual(1);
   expect(a.offenders, `${where}: elements outside the viewport`).toEqual([]);
   if (isTouch(testInfo)) expect(a.smallTargets, `${where}: tap targets under 32px`).toEqual([]);
+}
+
+/**
+ * A modal must sit fully inside the screen on both axes (landscape phones and the on-screen keyboard
+ * are where tall dialogs get clipped), and its main button must be reachable. Polls because dialogs
+ * zoom in when they open.
+ */
+export async function expectDialogFits(page: Page, dialog: Locator, where: string, primary?: Locator) {
+  const vp = page.viewportSize()!;
+  await expect(dialog).toBeVisible();
+  await expect
+    .poll(
+      async () => {
+        const b = await dialog.boundingBox();
+        if (!b) return "no box";
+        const out: string[] = [];
+        if (b.x < -1) out.push(`left ${Math.round(b.x)}`);
+        if (b.y < -1) out.push(`top ${Math.round(b.y)}`);
+        if (b.x + b.width > vp.width + 1) out.push(`right +${Math.round(b.x + b.width - vp.width)}`);
+        if (b.y + b.height > vp.height + 1) out.push(`bottom +${Math.round(b.y + b.height - vp.height)}`);
+        return out.join(", ") || "fits";
+      },
+      { message: `${where}: dialog sticks out of the ${vp.width}x${vp.height} screen` },
+    )
+    .toBe("fits");
+  if (primary) {
+    await primary.scrollIntoViewIfNeeded();
+    const b = (await primary.boundingBox())!;
+    expect(b.y, `${where}: main button above the screen`).toBeGreaterThanOrEqual(-1);
+    expect(b.y + b.height, `${where}: main button below the screen`).toBeLessThanOrEqual(vp.height + 1);
+  }
 }

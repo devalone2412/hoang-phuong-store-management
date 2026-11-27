@@ -480,7 +480,7 @@ function FormBody({ onOpenChange, product, units, categories }: BodyProps) {
 
       </div>
 
-      <DialogFooter className="grid shrink-0 grid-cols-2 gap-2 border-t bg-background px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:flex sm:px-6">
+      <DialogFooter className="grid shrink-0 grid-cols-2 gap-2 border-t bg-background px-5 py-3 sm:flex sm:px-6">
         <Button type="button" variant="outline" className="h-11 sm:h-9" onClick={() => onOpenChange(false)}>
           Hủy
         </Button>
