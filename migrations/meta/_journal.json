@@ -57,6 +57,13 @@
       "when": 1795777632257,
       "tag": "0007_categories_weight",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1795780322551,
+      "tag": "0008_lucky_prowler",
+      "breakpoints": true
     }
   ]
 }

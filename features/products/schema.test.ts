@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { comboWarnings, priceWarnings, productInputSchema } from "./schema";
+import { comboWarnings, priceWarnings, productInputSchema, weightPriceWarnings } from "./schema";
 
 const valid = { name: "Nước mắm Nam Ngư 500ml", unit: "chai", retailPrice: 38000 };
 
@@ -98,6 +98,64 @@ describe("combos and image", () => {
       const r = productInputSchema.safeParse(noUnit);
       expect(r.success).toBe(false);
       expect(productInputSchema.parse(valid).soldByWeight).toBe(false);
+    });
+
+    describe("weight prices", () => {
+      const w = { ...valid, soldByWeight: true, retailPrice: 120000 };
+
+      it("sorts rows by weight and defaults to none", () => {
+        expect(productInputSchema.parse(w).weightPrices).toEqual([]);
+        const r = productInputSchema.parse({
+          ...w,
+          weightPrices: [
+            { grams: 500, price: 65000 },
+            { grams: 100, price: 15000 },
+          ],
+        });
+        expect(r.weightPrices.map((x) => x.grams)).toEqual([100, 500]);
+      });
+
+      it("rejects rows on a product not sold by weight", () => {
+        expect(productInputSchema.safeParse({ ...valid, weightPrices: [{ grams: 100, price: 15000 }] }).success).toBe(false);
+      });
+
+      it("rejects duplicate weights and a 1 kg row", () => {
+        const dup = [
+          { grams: 100, price: 15000 },
+          { grams: 100, price: 16000 },
+        ];
+        expect(productInputSchema.safeParse({ ...w, weightPrices: dup }).success).toBe(false);
+        expect(productInputSchema.safeParse({ ...w, weightPrices: [{ grams: 1000, price: 120000 }] }).success).toBe(false);
+      });
+
+      it("allows at most 5 rows", () => {
+        const rows = [100, 200, 300, 400, 500, 600].map((grams) => ({ grams, price: grams * 150 }));
+        expect(productInputSchema.safeParse({ ...w, weightPrices: rows }).success).toBe(false);
+      });
+    });
+  });
+
+  describe("weightPriceWarnings", () => {
+    it("is quiet for sensible rows", () => {
+      expect(
+        weightPriceWarnings(120000, [
+          { grams: 100, price: 15000 },
+          { grams: 500, price: 65000 },
+        ]),
+      ).toEqual([]);
+    });
+
+    it("flags a heavier weight that costs less", () => {
+      expect(
+        weightPriceWarnings(120000, [
+          { grams: 200, price: 28000 },
+          { grams: 500, price: 20000 },
+        ]).some((m) => m.includes("500 g rẻ hơn 200 g")),
+      ).toBe(true);
+    });
+
+    it("flags a row cheaper per kg than 1 kg", () => {
+      expect(weightPriceWarnings(120000, [{ grams: 100, price: 10000 }])).toHaveLength(1);
     });
   });
 });

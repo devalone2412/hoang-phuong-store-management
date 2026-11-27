@@ -185,7 +185,7 @@ function WeightCalculator({ product: p }: { product: Product }) {
       <WeightInput compact grams={grams} onChange={setGrams} label={`Số cân ${p.name}`} />
       {grams ? (
         <p className="text-right text-lg font-bold tabular-nums" aria-live="polite" data-testid="weight-total">
-          {formatVnd(weightPrice(p.retailPrice, grams))}
+          {formatVnd(weightPrice(p.retailPrice, grams, p.weightPrices ?? []))}
         </p>
       ) : null}
     </div>

@@ -53,4 +53,44 @@ describe("weightPrice", () => {
     expect(weightPrice(40000, 0)).toBe(0);
     expect(weightPrice(40000, Number.NaN)).toBe(0);
   });
+
+  describe("with weight price points", () => {
+    const pts = [
+      { grams: 100, price: 15000 },
+      { grams: 200, price: 28000 },
+      { grams: 500, price: 65000 },
+    ];
+
+    it("is unchanged without points", () => {
+      expect(weightPrice(120000, 300, [])).toBe(weightPrice(120000, 300));
+    });
+
+    it("hits a point exactly", () => {
+      expect(weightPrice(120000, 100, pts)).toBe(15000);
+      expect(weightPrice(120000, 200, pts)).toBe(28000);
+      expect(weightPrice(120000, 500, pts)).toBe(65000);
+      expect(weightPrice(120000, 1000, pts)).toBe(120000);
+    });
+
+    it("interpolates between points and rounds to 500", () => {
+      expect(weightPrice(120000, 300, pts)).toBe(40500); // 28.000 + 37.000/3 = 40.333
+      expect(weightPrice(120000, 750, pts)).toBe(92500); // 65.000 + 55.000/2 = 92.500
+    });
+
+    it("scales below the first point from zero", () => {
+      expect(weightPrice(120000, 50, pts)).toBe(7500);
+    });
+
+    it("keeps the per-kg rate above 1 kg", () => {
+      expect(weightPrice(120000, 1500, pts)).toBe(180000);
+    });
+
+    it("extrapolates past a point heavier than 1 kg", () => {
+      expect(weightPrice(120000, 5000, [{ grams: 2000, price: 200000 }])).toBe(500000);
+    });
+
+    it("ignores a 1 kg point (retail price wins)", () => {
+      expect(weightPrice(120000, 1000, [{ grams: 1000, price: 1 }])).toBe(120000);
+    });
+  });
 });

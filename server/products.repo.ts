@@ -26,6 +26,7 @@ export function toProduct(r: ProductRow, barcodes: string[]): Product {
     retailPrice: r.retailPrice,
     costPrice: r.costPrice,
     combos: r.combos ?? [],
+    weightPrices: r.weightPrices ?? [],
     imageKey: r.imageKey,
     note: r.note,
     createdAt: r.createdAt,
@@ -221,6 +222,7 @@ function productColumns(data: ProductData) {
     retailPrice: data.retailPrice,
     costPrice: data.costPrice,
     combos: data.combos,
+    weightPrices: data.weightPrices,
     imageKey: data.imageKey,
     note: data.note,
   };

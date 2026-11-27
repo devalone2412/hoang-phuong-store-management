@@ -1,4 +1,4 @@
-import type { Combo } from "./schema";
+import type { Combo, WeightPrice } from "./schema";
 
 export type PricePart = { quantity: number; price: number; count: number; kind: "combo" | "single" };
 
@@ -42,9 +42,32 @@ export function bestPrice(unitPrice: number, combos: Combo[], qty: number): { to
 /** Weighed totals are rounded to the nearest 500 ₫ (cash-friendly), and never below 500 ₫. */
 export const WEIGHT_ROUNDING = 500;
 
-/** Price of `grams` of a product sold at `pricePerKg`. 37.500/kg × 130 g = 4.875 -> 5.000. */
-export function weightPrice(pricePerKg: number, grams: number): number {
+/**
+ * Price of `grams` of a product sold at `pricePerKg`. 37.500/kg × 130 g = 4.875 -> 5.000.
+ *
+ * `points` are the admin's fixed prices (100 g = 15.000, …). Between two neighbouring points, and
+ * between (0 g, 0 ₫), the points and (1 kg, pricePerKg), the price follows a straight line. Past the
+ * heaviest point it continues at that point's per-kg rate. No points = plain price per kg.
+ */
+export function weightPrice(pricePerKg: number, grams: number, points: WeightPrice[] = []): number {
   if (!(grams > 0)) return 0;
-  const exact = (pricePerKg * grams) / 1000;
+  const curve = [
+    { grams: 0, price: 0 },
+    ...points.filter((p) => p.grams !== 1000),
+    { grams: 1000, price: pricePerKg },
+  ].sort((a, b) => a.grams - b.grams);
+
+  let i = curve.findIndex((p) => p.grams >= grams);
+  let exact: number;
+  if (i === -1) {
+    // Beyond the heaviest point: same per-kg rate as that point.
+    const last = curve[curve.length - 1];
+    exact = (last.price * grams) / last.grams;
+  } else {
+    if (i === 0) i = 1;
+    const a = curve[i - 1];
+    const b = curve[i];
+    exact = a.price + ((b.price - a.price) * (grams - a.grams)) / (b.grams - a.grams);
+  }
   return Math.max(WEIGHT_ROUNDING, Math.round(exact / WEIGHT_ROUNDING) * WEIGHT_ROUNDING);
 }

@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { Product } from "@/features/products/schema";
 import { thumbKey } from "@/lib/image-keys";
 import { formatVnd } from "@/lib/money";
+import { formatWeight } from "@/lib/weight";
 import { cn } from "@/lib/utils";
 
 export const imageUrl = (key: string) => `/api/images/${key}`;
@@ -42,8 +43,11 @@ export function PriceList({ product: p, showCost = false }: { product: Product; 
   if (p.soldByWeight) {
     return (
       <dl className="grid w-fit grid-cols-[auto_auto] gap-x-4 gap-y-0.5 text-sm tabular-nums">
+        {(p.weightPrices ?? []).map((w) => (
+          <Row key={w.grams} label={`Giá / ${formatWeight(w.grams)}`} value={formatVnd(w.price)} accent />
+        ))}
         <Row label="Giá / kg" value={formatVnd(p.retailPrice)} strong />
-        <Row label="Giá / 100 g" value={formatVnd(Math.round(p.retailPrice / 10))} />
+        {!p.weightPrices?.length && <Row label="Giá / 100 g" value={formatVnd(Math.round(p.retailPrice / 10))} />}
         {showCost && p.costPrice != null && <Row label="Giá vốn / kg" value={formatVnd(p.costPrice)} muted />}
       </dl>
     );

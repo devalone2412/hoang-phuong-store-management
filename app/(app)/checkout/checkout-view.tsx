@@ -144,7 +144,7 @@ export function CheckoutView() {
   const priced = lines.map((l) => ({
     ...l,
     weighed: l.product.soldByWeight === true,
-    price: l.product.soldByWeight ? { total: l.grams ? weightPrice(l.product.retailPrice, l.grams) : 0, parts: [] } : bestPrice(l.product.retailPrice, l.product.combos, l.qty),
+    price: l.product.soldByWeight ? { total: l.grams ? weightPrice(l.product.retailPrice, l.grams, l.product.weightPrices ?? []) : 0, parts: [] } : bestPrice(l.product.retailPrice, l.product.combos, l.qty),
   }));
   const total = priced.reduce((sum, l) => sum + l.price.total, 0) + extras.reduce((sum, x) => sum + x.amount * x.qty, 0);
   const units = priced.reduce((sum, l) => sum + (l.weighed ? 0 : l.qty), 0) + extras.reduce((sum, x) => sum + x.qty, 0);
